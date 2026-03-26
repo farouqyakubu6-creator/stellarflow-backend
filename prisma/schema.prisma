@@ -1,0 +1,14 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model PriceRecord {
+  id        Int      @id @default(autoincrement())
+  currency  String
+  value     Float
+  timestamp DateTime
+}
