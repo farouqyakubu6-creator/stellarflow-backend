@@ -6,6 +6,7 @@ import {
 } from "./types";
 import { KESRateFetcher } from "./kesFetcher";
 import { GHSRateFetcher } from "./ghsFetcher";
+import { NGNRateFetcher } from "./ngnFetcher";
 
 export class MarketRateService {
   private fetchers: Map<string, MarketRateFetcher> = new Map();
@@ -19,9 +20,11 @@ export class MarketRateService {
   private initializeFetchers(): void {
     const kesFetcher = new KESRateFetcher();
     const ghsFetcher = new GHSRateFetcher();
+    const ngnFetcher = new NGNRateFetcher();
 
     this.fetchers.set("KES", kesFetcher);
     this.fetchers.set("GHS", ghsFetcher);
+    this.fetchers.set("NGN", ngnFetcher);
   }
 
   async getRate(currency: string): Promise<FetcherResponse> {
