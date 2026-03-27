@@ -2,6 +2,7 @@ import express from "express";
 import { createServer } from "http";
 import cors from "cors";
 import dotenv from "dotenv";
+import morgan from "morgan";
 import { Horizon } from "@stellar/stellar-sdk";
 import swaggerUi from "swagger-ui-express";
 import marketRatesRouter from "./routes/marketRates";
@@ -56,6 +57,7 @@ const horizonUrl =
 const horizonServer = new Horizon.Server(horizonUrl);
 
 // Middleware
+app.use(morgan("dev"));
 app.use(
   cors({
     origin: (origin, callback) => {

@@ -2,6 +2,7 @@ import express from "express";
 import { createServer } from "http";
 import cors from "cors";
 import dotenv from "dotenv";
+import morgan from "morgan";
 import { Horizon } from "@stellar/stellar-sdk";
 import marketRatesRouter from "./routes/marketRates";
 import historyRouter from "./routes/history";
@@ -35,6 +36,7 @@ const horizonUrl = stellarNetwork === "PUBLIC"
     : "https://horizon-testnet.stellar.org";
 const horizonServer = new Horizon.Server(horizonUrl);
 // Middleware
+app.use(morgan("dev"));
 app.use(cors());
 app.use(express.json());
 // Routes
