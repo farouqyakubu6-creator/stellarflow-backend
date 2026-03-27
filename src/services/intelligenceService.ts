@@ -88,8 +88,9 @@ export class IntelligenceService {
 
       const staleCurrencies: string[] = [];
       for (const c of currenciesWithLatestUpdate) {
-        const hasNoHistory = c.priceHistory.length === 0;
-        const isOld = !hasNoHistory && new Date(c.priceHistory[0].updatedAt) < staleTime;
+        const latest = c.priceHistory[0];
+        const hasNoHistory = !latest;
+        const isOld = latest && new Date(latest.updatedAt) < staleTime;
         
         if (hasNoHistory || isOld) {
           staleCurrencies.push(c.code);
