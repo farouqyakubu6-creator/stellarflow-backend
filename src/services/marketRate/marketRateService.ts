@@ -79,7 +79,45 @@ export class MarketRateService {
         };
       }
 
-      const rate = await fetcher.fetchRate();
+      let rate;
+      try {
+        rate = await fetcher.fetchRate();
+      } catch (fetchError) {
+        // Log provider/fetcher failure to ErrorLog (non-blocking)
+        try {
+          const providerName =
+            fetcher && typeof (fetcher as any).constructor === "function"
+              ? (fetcher as any).constructor.name
+              : normalizedCurrency;
+          try {
+            const clientAny = prisma as any;
+            if (clientAny?.errorLog && typeof clientAny.errorLog.create === "function") {
+              clientAny.errorLog.create({
+                data: {
+                  providerName,
+                  errorMessage:
+                    fetchError instanceof Error
+                      ? fetchError.message
+                      : JSON.stringify(fetchError),
+                  occurredAt: new Date(),
+                },
+              }).catch(() => {});
+            }
+          } catch {
+            // swallow
+          }
+        } catch {
+          // swallow any unexpected errors when attempting to log
+        }
+
+        return {
+          success: false,
+          error:
+            fetchError instanceof Error
+              ? fetchError.message
+              : "Unknown fetcher error",
+        };
+      }
       const reviewAssessment = await priceReviewService.assessRate(rate);
       const enrichedRate: MarketRate = {
         ...rate,

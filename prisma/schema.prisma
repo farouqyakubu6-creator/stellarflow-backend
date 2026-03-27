@@ -133,3 +133,15 @@ model MultiSigSignature {
   @@index([multiSigPriceId])
   @@index([signerPublicKey])
 }
+
+// Error log table for tracking provider/fetcher failures
+model ErrorLog {
+  id           Int      @id @default(autoincrement())
+  providerName String   @db.VarChar(200) // e.g., "CoinGecko", "KESRateFetcher"
+  errorMessage String?  @db.Text
+  occurredAt   DateTime @db.Timestamp(3)
+  createdAt    DateTime @default(now())
+
+  @@index([providerName])
+  @@index([occurredAt])
+}
