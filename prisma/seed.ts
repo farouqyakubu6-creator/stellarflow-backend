@@ -9,6 +9,13 @@ const prisma = new PrismaClient();
 
 const currencies = [
   {
+    code: "NGN",
+    name: "Nigerian Naira",
+    symbol: "₦",
+    decimals: 2,
+    isActive: true,
+  },
+  {
     code: "GHS",
     name: "Ghanaian Cedi",
     symbol: "₵",

@@ -9,6 +9,7 @@ import { GHSRateFetcher } from "./ghsFetcher";
 import { NGNRateFetcher } from "./ngnFetcher";
 import { StellarService } from "../stellarService";
 import { getIO } from "../../lib/socket";
+import prisma from "../../lib/prisma";
 
 export class MarketRateService {
   private fetchers: Map<string, MarketRateFetcher> = new Map();
@@ -33,7 +34,8 @@ export class MarketRateService {
 
   async getRate(currency: string): Promise<FetcherResponse> {
     try {
-      const fetcher = this.fetchers.get(currency.toUpperCase());
+      const normalizedCurrency = currency.toUpperCase();
+      const fetcher = this.fetchers.get(normalizedCurrency);
       if (!fetcher) {
         return {
           success: false,
@@ -41,8 +43,7 @@ export class MarketRateService {
         };
       }
 
-      // Check cache first
-      const cached = this.cache.get(currency.toUpperCase());
+      const cached = this.cache.get(normalizedCurrency);
       if (cached && cached.expiry > new Date()) {
         return {
           success: true,
@@ -50,33 +51,99 @@ export class MarketRateService {
         };
       }
 
-      // Fetch fresh rate
       const rate = await fetcher.fetchRate();
+      const reviewAssessment = await priceReviewService.assessRate(rate);
+      const enrichedRate: MarketRate = {
+        ...rate,
+        manualReviewRequired: reviewAssessment.manualReviewRequired,
+        reviewId: reviewAssessment.reviewRecordId,
+        contractSubmissionSkipped: reviewAssessment.manualReviewRequired,
+        ...(reviewAssessment.reason !== undefined && {
+          reviewReason: reviewAssessment.reason,
+        }),
+        ...(reviewAssessment.changePercent !== undefined && {
+          reviewChangePercent: reviewAssessment.changePercent,
+        }),
+        ...(reviewAssessment.comparisonRate !== undefined && {
+          comparisonRate: reviewAssessment.comparisonRate,
+        }),
+        ...(reviewAssessment.comparisonTimestamp !== undefined && {
+          comparisonTimestamp: reviewAssessment.comparisonTimestamp,
+        }),
+      };
 
-      // Submit price update to Stellar with a unique memo ID
-      try {
-        const memoId = this.stellarService.generateMemoId(currency.toUpperCase());
-        await this.stellarService.submitPriceUpdate(currency.toUpperCase(), rate.rate, memoId);
-      } catch (stellarError) {
-        console.error("Failed to submit price update to Stellar network:", stellarError);
+      if (!reviewAssessment.manualReviewRequired) {
+        try {
+          const memoId = this.stellarService.generateMemoId(normalizedCurrency);
+          const txHash = await this.stellarService.submitPriceUpdate(
+            normalizedCurrency,
+            rate.rate,
+            memoId,
+          );
+          await priceReviewService.markContractSubmitted(
+            reviewAssessment.reviewRecordId,
+            memoId,
+            txHash,
+          );
+        } catch (stellarError) {
+          console.error(
+            "Failed to submit price update to Stellar network:",
+            stellarError,
+          );
+        }
+      } else {
+        console.warn(
+          `Manual review required for ${normalizedCurrency} rate ${rate.rate}. Skipping contract submission.`,
+        );
       }
 
-      // Update cache
-      this.cache.set(currency.toUpperCase(), {
-        rate,
+      this.cache.set(normalizedCurrency, {
+        rate: enrichedRate,
         expiry: new Date(Date.now() + this.CACHE_DURATION_MS),
       });
 
+      // Persist to price history for sparkline charts
+      try {
+        await prisma.priceHistory.upsert({
+          where: {
+            currency_source_timestamp: {
+              currency: currency.toUpperCase(),
+              source: rate.source,
+              timestamp: rate.timestamp,
+            },
+          },
+          update: {},
+          create: {
+            currency: currency.toUpperCase(),
+            rate: rate.rate,
+            source: rate.source,
+            timestamp: rate.timestamp,
+          },
+        });
+      } catch (dbError) {
+        console.error("Failed to persist price history:", dbError);
+      }
+
       // Broadcast fresh price to all connected dashboard clients
       try {
-        getIO().emit("price:update", { currency: currency.toUpperCase(), rate });
+        getIO().emit("price:update", {
+          currency: normalizedCurrency,
+          rate: enrichedRate,
+        });
+
+        if (reviewAssessment.manualReviewRequired) {
+          getIO().emit("price:review_required", {
+            currency: normalizedCurrency,
+            rate: enrichedRate,
+          });
+        }
       } catch {
-        // Socket not initialized yet (e.g. during tests) — skip silently
+        // Socket not initialized yet (e.g. during tests) - skip silently
       }
 
       return {
         success: true,
-        data: rate,
+        data: enrichedRate,
       };
     } catch (error) {
       return {
@@ -100,7 +167,7 @@ export class MarketRateService {
     for (const [currency, fetcher] of this.fetchers) {
       try {
         results[currency] = await fetcher.isHealthy();
-      } catch (error) {
+      } catch {
         results[currency] = false;
       }
     }
@@ -137,6 +204,74 @@ export class MarketRateService {
 
   clearCache(): void {
     this.cache.clear();
+  }
+
+  async getPendingReviews(): Promise<PendingPriceReview[]> {
+    return priceReviewService.getPendingReviews();
+  }
+
+  async approvePendingReview(
+    reviewId: number,
+    reviewedBy?: string,
+    reviewNotes?: string,
+  ): Promise<PendingPriceReview> {
+    const pendingReview = await priceReviewService.getPendingReviewById(reviewId);
+    if (!pendingReview) {
+      throw new Error(`Pending review ${reviewId} was not found`);
+    }
+
+    const memoId = this.stellarService.generateMemoId(pendingReview.currency);
+    const txHash = await this.stellarService.submitPriceUpdate(
+      pendingReview.currency,
+      pendingReview.rate,
+      memoId,
+    );
+
+    const approvedReview = await priceReviewService.approveReview({
+      reviewId,
+      memoId,
+      stellarTxHash: txHash,
+      ...(reviewedBy !== undefined && { reviewedBy }),
+      ...(reviewNotes !== undefined && { reviewNotes }),
+    });
+
+    this.cache.delete(pendingReview.currency.toUpperCase());
+
+    try {
+      getIO().emit("price:review_resolved", {
+        action: "approved",
+        review: approvedReview,
+      });
+    } catch {
+      // Socket not initialized yet (e.g. during tests) - skip silently
+    }
+
+    return approvedReview;
+  }
+
+  async rejectPendingReview(
+    reviewId: number,
+    reviewedBy?: string,
+    reviewNotes?: string,
+  ): Promise<PendingPriceReview> {
+    const rejectedReview = await priceReviewService.rejectReview({
+      reviewId,
+      ...(reviewedBy !== undefined && { reviewedBy }),
+      ...(reviewNotes !== undefined && { reviewNotes }),
+    });
+
+    this.cache.delete(rejectedReview.currency.toUpperCase());
+
+    try {
+      getIO().emit("price:review_resolved", {
+        action: "rejected",
+        review: rejectedReview,
+      });
+    } catch {
+      // Socket not initialized yet (e.g. during tests) - skip silently
+    }
+
+    return rejectedReview;
   }
 
   getCacheStatus(): Record<string, { cached: boolean; expiry?: Date }> {

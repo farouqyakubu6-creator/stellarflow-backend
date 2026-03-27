@@ -4,8 +4,10 @@ import cors from "cors";
 import dotenv from "dotenv";
 import { Horizon } from "@stellar/stellar-sdk";
 import marketRatesRouter from "./routes/marketRates";
+import historyRouter from "./routes/history";
 import prisma from "./lib/prisma";
 import { initSocket } from "./lib/socket";
+import { SorobanEventListener } from "./services/sorobanEventListener";
 
 // Load environment variables
 dotenv.config();
@@ -46,6 +48,7 @@ app.use(express.json());
 
 // Routes
 app.use("/api/market-rates", marketRatesRouter);
+app.use("/api/history", historyRouter);
 
 // Health check endpoint
 app.get("/health", async (req, res) => {
@@ -137,6 +140,17 @@ httpServer.listen(PORT, () => {
   );
   console.log(`🏥 Health check at http://localhost:${PORT}/health`);
   console.log(`🔌 Socket.io ready for dashboard connections`);
+
+  // Start Soroban event listener to track confirmed on-chain prices
+  try {
+    const eventListener = new SorobanEventListener();
+    eventListener.start().catch((err) => {
+      console.error("Failed to start event listener:", err);
+    });
+    console.log(`👂 Soroban event listener started`);
+  } catch (err) {
+    console.warn("Event listener not started:", err instanceof Error ? err.message : err);
+  }
 });
 
 export default app;

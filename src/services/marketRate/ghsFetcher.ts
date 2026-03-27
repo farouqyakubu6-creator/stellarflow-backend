@@ -1,10 +1,5 @@
 import axios from "axios";
-import {
-  MarketRateFetcher,
-  MarketRate,
-  SourceTrustLevel,
-  calculateWeightedAverage,
-} from "./types";
+import { MarketRateFetcher, MarketRate, calculateMedian, filterOutliers } from "./types";
 import { errorTracker } from "../errorTracker";
 import { webhookService } from "../webhook";
 
@@ -183,9 +178,9 @@ export class GHSRateFetcher implements MarketRateFetcher {
 
     // If we have prices, calculate median
     if (prices.length > 0) {
-      const weightedRate = calculateWeightedAverage(
-        prices.map((p) => ({ value: p.rate, trustLevel: p.trustLevel })),
-      );
+      let rateValues = prices.map((p) => p.rate).filter(p => p > 0);
+      rateValues = filterOutliers(rateValues);
+      const medianRate = calculateMedian(rateValues);
       const mostRecentTimestamp = prices.reduce(
         (latest, p) => (p.timestamp > latest ? p.timestamp : latest),
         prices[0]?.timestamp ?? new Date(),
@@ -195,7 +190,7 @@ export class GHSRateFetcher implements MarketRateFetcher {
         currency: "GHS",
         rate: weightedRate,
         timestamp: mostRecentTimestamp,
-        source: `Weighted average of ${prices.length} sources`,
+        source: `Median of ${prices.length} sources (outliers filtered)`,
       };
     }
 

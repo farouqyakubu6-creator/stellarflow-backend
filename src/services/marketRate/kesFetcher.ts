@@ -4,8 +4,8 @@ import {
   MarketRate,
   RateSource,
   RateFetchError,
-  SourceTrustLevel,
-  calculateWeightedAverage,
+  calculateMedian,
+  filterOutliers,
 } from "./types";
 
 /**
@@ -414,9 +414,10 @@ export class KESRateFetcher implements MarketRateFetcher {
       return null;
     }
 
-    const weightedRate = calculateWeightedAverage(
-      prices.map((p) => ({ value: p.rate, trustLevel: p.trustLevel })),
-    );
+    // Calculate median rate from all sources (with outlier filtering)
+    let rateValues = prices.map((p) => p.rate).filter(p => p > 0);
+    rateValues = filterOutliers(rateValues);
+    const medianRate = calculateMedian(rateValues);
 
     // Return the median with the most recent timestamp
     const firstTimestamp = prices[0]?.timestamp ?? new Date();
@@ -429,7 +430,7 @@ export class KESRateFetcher implements MarketRateFetcher {
       currency: "KES",
       rate: weightedRate,
       timestamp: mostRecentTimestamp,
-      source: `Binance (Weighted average of ${prices.length} sources)`,
+      source: `Binance (Median of ${prices.length} sources, outliers filtered)`,
     };
   }
 

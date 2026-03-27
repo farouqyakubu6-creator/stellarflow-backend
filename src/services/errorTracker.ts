@@ -1,19 +1,19 @@
-cat > src/services/errorTracker.ts << 'EOF'
 export class ErrorTracker {
-  private failureCounters: Map<string, { count: number; errors: any[] }> = new Map();
+  private failureCounters: Map<string, { count: number; errors: unknown[] }> =
+    new Map();
   private readonly threshold = 3;
 
-  trackFailure(serviceKey: string, errorDetails: any): boolean {
+  trackFailure(serviceKey: string, errorDetails: unknown): boolean {
     const existing = this.failureCounters.get(serviceKey);
     if (existing) {
-      existing.count++;
+      existing.count += 1;
       existing.errors.push(errorDetails);
       this.failureCounters.set(serviceKey, existing);
       return existing.count >= this.threshold;
-    } else {
-      this.failureCounters.set(serviceKey, { count: 1, errors: [errorDetails] });
-      return false;
     }
+
+    this.failureCounters.set(serviceKey, { count: 1, errors: [errorDetails] });
+    return false;
   }
 
   trackSuccess(serviceKey: string): void {
@@ -26,4 +26,4 @@ export class ErrorTracker {
 }
 
 export const errorTracker = new ErrorTracker();
-EOF
+export const errorTracker = new ErrorTracker();

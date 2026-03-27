@@ -83,6 +83,91 @@ router.get("/latest", async (req, res) => {
   }
 });
 
+router.get("/reviews/pending", async (req, res) => {
+  try {
+    const reviews = await marketRateService.getPendingReviews();
+
+    res.json({
+      success: true,
+      data: reviews,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to fetch pending price reviews",
+    });
+  }
+});
+
+router.post("/reviews/:id/approve", async (req, res) => {
+  try {
+    const reviewId = Number.parseInt(req.params.id, 10);
+    if (!Number.isFinite(reviewId)) {
+      res.status(400).json({
+        success: false,
+        error: "Review ID must be a valid number",
+      });
+      return;
+    }
+
+    const { reviewedBy, note } = req.body ?? {};
+    const review = await marketRateService.approvePendingReview(
+      reviewId,
+      reviewedBy,
+      note,
+    );
+
+    res.json({
+      success: true,
+      data: review,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to approve price review",
+    });
+  }
+});
+
+router.post("/reviews/:id/reject", async (req, res) => {
+  try {
+    const reviewId = Number.parseInt(req.params.id, 10);
+    if (!Number.isFinite(reviewId)) {
+      res.status(400).json({
+        success: false,
+        error: "Review ID must be a valid number",
+      });
+      return;
+    }
+
+    const { reviewedBy, note } = req.body ?? {};
+    const review = await marketRateService.rejectPendingReview(
+      reviewId,
+      reviewedBy,
+      note,
+    );
+
+    res.json({
+      success: true,
+      data: review,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to reject price review",
+    });
+  }
+});
+
 // Health check for all fetchers
 router.get("/health", async (req, res) => {
   try {

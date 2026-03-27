@@ -1,37 +1,26 @@
-// Prisma Schema for StellarFlow Backend
-// PostgreSQL database schema for price history tracking
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
-// Price History Model
-// Stores historical exchange rates for sparkline charts
 model PriceHistory {
   id          Int       @id @default(autoincrement())
-  currency    String    @db.VarChar(10)  // e.g., "GHS", "KES"
-  rate        Decimal   @db.Decimal(20, 10)  // High precision for exchange rates
-  source      String    @db.VarChar(100)  // Source API name
-  timestamp   DateTime  @db.Timestamp(3)  // When the rate was recorded
-  
-  // Indexes for efficient sparkline queries
-  @@index([currency, timestamp])
-  @@index([timestamp])
-  
-  // Unique constraint to prevent duplicate entries at same timestamp from same source
-  @@unique([currency, source, timestamp])
-  
+  currency    String    @db.VarChar(10)
+  rate        Decimal   @db.Decimal(20, 10)
+  source      String    @db.VarChar(100)
+  timestamp   DateTime  @db.Timestamp(3)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  currencyRef Currency? @relation(fields: [currency], references: [code])
+
+  @@index([currency, timestamp])
+  @@index([timestamp])
+  @@unique([currency, source, timestamp])
 }
 
-// Currency Configuration Model
-// Stores supported currencies and their metadata
 model Currency {
   code        String    @id @db.VarChar(10)  // e.g., "GHS", "KES"
   name        String    @db.VarChar(100)      // Full name e.g., "Ghanaian Cedi"
@@ -41,26 +30,27 @@ model Currency {
   
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-  
-  // Relations
-  priceHistory PriceHistory[]
-}generator client {
-  provider = "prisma-client-js"
 }
 
-datasource db {
-  provider = "postgresql"
+// On-Chain Confirmed Price Model
+// Stores prices confirmed on Stellar via manageData or Soroban contract events
+model OnChainPrice {
+  id            Int       @id @default(autoincrement())
+  currency      String    @db.VarChar(10)    // e.g., "NGN", "KES", "GHS"
+  rate          Decimal   @db.Decimal(20, 10) // The confirmed price
+  txHash        String    @db.VarChar(64)    // Stellar transaction hash
+  memoId        String?   @db.VarChar(28)    // Memo ID from transaction (e.g., SF-NGN-1234567890-001)
+  ledgerSeq     Int                          // Ledger sequence number
+  confirmedAt   DateTime  @db.Timestamp(3)   // When the transaction was confirmed on-chain
+
+  @@index([currency, confirmedAt])
+  @@index([txHash])
+  @@index([ledgerSeq])
+  @@unique([txHash, currency])
+
+  createdAt     DateTime  @default(now())
 }
 
-model PriceRecord {
-  id        Int      @id @default(autoincrement())
-  currency  String
-  value     Float
-  timestamp DateTime
-}
-
-// Provider Reputation Model
-// Tracks API reliability and performance
 model ProviderReputation {
   id              Int       @id @default(autoincrement())
   providerName    String    @db.VarChar(100)  // e.g., "CoinGecko", "ExchangeRateAPI"
@@ -70,7 +60,7 @@ model ProviderReputation {
   successfulRequests Int    @default(0)       // Successful responses
   failedRequests  Int       @default(0)       // Failed responses
   incorrectResponses Int   @default(0)        // Responses with invalid/incorrect data
-  averageLatency  Float?    @db.Float         // Average response time in ms
+  averageLatency  Float?    @db.DoublePrecision // Average response time in ms
   lastSuccess     DateTime?                    // Last successful response timestamp
   lastFailure     DateTime?                    // Last failed response timestamp
   lastIncorrect   DateTime?                    // Last incorrect response timestamp
@@ -78,7 +68,7 @@ model ProviderReputation {
   consecutiveIncorrect Int @default(0)        // Current streak of consecutive incorrect responses
   
   // Reliability metrics
-  reliabilityScore Float?   @db.Float         // Calculated score (0-100)
+  reliabilityScore Float?   @db.DoublePrecision // Calculated score (0-100)
   lastUpdated     DateTime  @updatedAt
   
   createdAt       DateTime  @default(now())
