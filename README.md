@@ -38,6 +38,91 @@ cp .env.example .env
 
 ### Run the Server
 
+Framework: Next.js 15 (App Router)
+Styling: Tailwind CSS
+State Management: Zustand
+Web3: @stellar/stellar-sdk
+
+---
+
+### 2. Backend README (`stellarflow-backend`)
+**Location:** `stellarflow-backend/README.md`
+
+```markdown
+# ⚙️ StellarFlow Backend
+
+> 🏗️ **Oracle Infrastructure & Data Engine** | TypeScript/Node.js backend for the StellarFlow network.
+
+This repository serves as the central data engine for StellarFlow. It orchestrates real-time price fetching from localized African markets and feeds that data to the Soroban smart contracts on the Stellar blockchain[cite: 17, 172].
+
+## 🛠️ Key Services
+- **🛰️ Price Oracle**: Fetches real-time exchange rates (e.g., NGN/XLM) every 10 seconds[cite: 179].
+- **🔗 Soroban Service**: Interfaces with on-chain contracts to resolve oracle data[cite: 180].
+- **🛡️ JWT Auth**: Secure, wallet-based authentication[cite: 172].
+- **💾 Database**: Scalable PostgreSQL with Prisma ORM[cite: 194].
+
+## 📂 Project Structure
+```text
+├── prisma/        # Database schema and migrations [cite: 194]
+├── src/
+│   ├── routes/    # API Endpoints [cite: 174]
+│   ├── services/  # Business logic (Oracle, Soroban) [cite: 175]
+│   └── utils/     # Helper functions [cite: 176]
+
+Running the Server
+
+Configure .env: Copy .env.example and add your SOROBAN_ADMIN_SECRET.
+Install: npm install
+Run: npm run dev
+
+## 📖 Documentation
+
+Internal API documentation is auto-generated from the TypeScript source using [TypeDoc](https://typedoc.org/).
+
+### Generate docs
+```bash
+npm run docs
+```
+
+This outputs static HTML to the `docs/` directory. Open `docs/index.html` in a browser to browse.
+
+### Watch mode
+```bash
+npm run docs:watch
+```
+
+Regenerates documentation on every file change — useful while writing JSDoc comments.
+
+### Key classes covered
+- **MarketRateService** — orchestrates price fetching, caching, review, and Stellar submission
+- **StellarService** — handles Stellar transactions (`manageData`, fees, multi-sig)
+- **CoinGeckoFetcher / NGNRateFetcher / KESRateFetcher / GHSRateFetcher** — per-source price fetchers implementing `MarketRateFetcher`
+- **MultiSigService** — multi-signature database and HTTP signing
+- **SorobanEventListener** — Horizon polling for oracle account transactions
+
+---
+
+### 3. Smart Contracts README (`stellarflow-contracts`)
+**Location:** `stellarflow-contracts/README.md`
+
+```markdown
+# 📜 StellarFlow Smart Contracts
+
+> 💎 **Soroban Smart Contracts** | The trustless core of the StellarFlow Oracle.
+
+These smart contracts, written in **Rust**, manage the on-chain verification and storage of Oracle data. Built specifically for the **Soroban** platform on Stellar[cite: 170, 443].
+
+## 🛡️ Contract Functions
+- **`initialize`**: Set the admin and authorized data providers.
+- **`push_data`**: Allow authorized oracles to submit new data points.
+- **`get_latest_price`**: Public function for other dApps to consume Oracle data.
+
+## 🔧 Development
+### Prerequisites
+- **Rust Toolchain**: `rustup` [cite: 195]
+- **Stellar CLI**: `stellar-cli`
+
+### Build & Test
 ```bash
 npm run dev
 ```
