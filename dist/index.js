@@ -17,8 +17,11 @@ import { SorobanEventListener } from "./services/sorobanEventListener";
 import { specs } from "./lib/swagger";
 import { multiSigSubmissionService } from "./services/multiSigSubmissionService";
 import { apiKeyMiddleware } from "./middleware/apiKeyMiddleware";
+import { validateEnv } from "./utils/envValidator";
 // Load environment variables
 dotenv.config();
+// [OPS] Implement "Environment Variable" Check on Start
+validateEnv();
 // Validate required environment variables
 const requiredEnvVars = ["STELLAR_SECRET", "DATABASE_URL"];
 const missingEnvVars = [];
@@ -221,6 +224,54 @@ app.use("*", (req, res) => {
 // Start server
 const httpServer = createServer(app);
 initSocket(httpServer);
+let sorobanEventListener = null;
+let isShuttingDown = false;
+const closeHttpServer = () => new Promise((resolve, reject) => {
+    if (!httpServer.listening) {
+        resolve();
+        return;
+    }
+    httpServer.close((error) => {
+        if (error) {
+            reject(error);
+            return;
+        }
+        resolve();
+    });
+});
+const shutdown = async (signal) => {
+    if (isShuttingDown) {
+        console.log(`Shutdown already in progress. Received duplicate ${signal} signal.`);
+        return;
+    }
+    isShuttingDown = true;
+    console.log(`${signal} received. Starting graceful shutdown...`);
+    try {
+        sorobanEventListener?.stop();
+        multiSigSubmissionService.stop();
+        await closeHttpServer();
+        console.log("HTTP server closed.");
+        await prisma.$disconnect();
+        console.log("Database connections closed cleanly.");
+        process.exit(0);
+    }
+    catch (error) {
+        console.error("Graceful shutdown failed:", error);
+        process.exit(1);
+    }
+};
+process.once("SIGINT", () => {
+    shutdown("SIGINT").catch((error) => {
+        console.error("Unhandled SIGINT shutdown error:", error);
+        process.exit(1);
+    });
+});
+process.once("SIGTERM", () => {
+    shutdown("SIGTERM").catch((error) => {
+        console.error("Unhandled SIGTERM shutdown error:", error);
+        process.exit(1);
+    });
+});
 httpServer.listen(PORT, () => {
     console.log(`🌊 StellarFlow Backend running on port ${PORT}`);
     console.log(`📊 Market Rates API available at http://localhost:${PORT}/api/market-rates`);
@@ -229,14 +280,15 @@ httpServer.listen(PORT, () => {
     console.log(`🔌 Socket.io ready for dashboard connections`);
     // Start Soroban event listener to track confirmed on-chain prices
     try {
-        const eventListener = new SorobanEventListener();
-        eventListener.start().catch((err) => {
+        sorobanEventListener = new SorobanEventListener();
+        sorobanEventListener.start().catch((err) => {
             console.error("Failed to start event listener:", err);
         });
         console.log(`👂 Soroban event listener started`);
     }
     catch (err) {
         console.warn("Event listener not started:", err instanceof Error ? err.message : err);
+        sorobanEventListener = null;
     }
     // Start multi-sig submission service if enabled
     if (process.env.MULTI_SIG_ENABLED === "true") {

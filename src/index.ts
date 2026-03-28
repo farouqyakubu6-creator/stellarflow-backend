@@ -265,6 +265,67 @@ app.use("*", (req, res) => {
 // Start server
 const httpServer = createServer(app);
 initSocket(httpServer);
+let sorobanEventListener: SorobanEventListener | null = null;
+let isShuttingDown = false;
+
+const closeHttpServer = (): Promise<void> =>
+  new Promise((resolve, reject) => {
+    if (!httpServer.listening) {
+      resolve();
+      return;
+    }
+
+    httpServer.close((error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve();
+    });
+  });
+
+const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
+  if (isShuttingDown) {
+    console.log(
+      `Shutdown already in progress. Received duplicate ${signal} signal.`,
+    );
+    return;
+  }
+
+  isShuttingDown = true;
+  console.log(`${signal} received. Starting graceful shutdown...`);
+
+  try {
+    sorobanEventListener?.stop();
+    multiSigSubmissionService.stop();
+
+    await closeHttpServer();
+    console.log("HTTP server closed.");
+
+    await prisma.$disconnect();
+    console.log("Database connections closed cleanly.");
+
+    process.exit(0);
+  } catch (error) {
+    console.error("Graceful shutdown failed:", error);
+    process.exit(1);
+  }
+};
+
+process.once("SIGINT", () => {
+  shutdown("SIGINT").catch((error) => {
+    console.error("Unhandled SIGINT shutdown error:", error);
+    process.exit(1);
+  });
+});
+
+process.once("SIGTERM", () => {
+  shutdown("SIGTERM").catch((error) => {
+    console.error("Unhandled SIGTERM shutdown error:", error);
+    process.exit(1);
+  });
+});
 
 httpServer.listen(PORT, () => {
   console.log(`🌊 StellarFlow Backend running on port ${PORT}`);
@@ -279,8 +340,8 @@ httpServer.listen(PORT, () => {
 
   // Start Soroban event listener to track confirmed on-chain prices
   try {
-    const eventListener = new SorobanEventListener();
-    eventListener.start().catch((err) => {
+    sorobanEventListener = new SorobanEventListener();
+    sorobanEventListener.start().catch((err) => {
       console.error("Failed to start event listener:", err);
     });
     console.log(`👂 Soroban event listener started`);
@@ -289,6 +350,7 @@ httpServer.listen(PORT, () => {
       "Event listener not started:",
       err instanceof Error ? err.message : err,
     );
+    sorobanEventListener = null;
   }
 
   // Start multi-sig submission service if enabled

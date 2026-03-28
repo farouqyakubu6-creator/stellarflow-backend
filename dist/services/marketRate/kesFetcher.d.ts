@@ -8,14 +8,6 @@ declare enum CircuitState {
     HALF_OPEN = "HALF_OPEN"
 }
 /**
- * Circuit Breaker States
- */
-declare enum CircuitState {
-    CLOSED = "CLOSED",// Normal operation, requests pass through
-    OPEN = "OPEN",// Failing, reject requests immediately
-    HALF_OPEN = "HALF_OPEN"
-}
-/**
  * KES/XLM Rate Fetcher using Binance Public API
  * Implements multiple strategies to fetch KES rates:
  * 1. Direct Binance Spot API (XLMKES pair)

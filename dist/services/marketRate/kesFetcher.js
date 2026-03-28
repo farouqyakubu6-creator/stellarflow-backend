@@ -11,14 +11,6 @@ var CircuitState;
     CircuitState["HALF_OPEN"] = "HALF_OPEN";
 })(CircuitState || (CircuitState = {}));
 /**
- * Circuit Breaker States
- */
-(function (CircuitState) {
-    CircuitState["CLOSED"] = "CLOSED";
-    CircuitState["OPEN"] = "OPEN";
-    CircuitState["HALF_OPEN"] = "HALF_OPEN";
-})(CircuitState || (CircuitState = {}));
-/**
  * Circuit Breaker Implementation
  */
 class CircuitBreaker {
