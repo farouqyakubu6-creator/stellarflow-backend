@@ -1,27 +1,13 @@
-import express from "express";
 import { createServer } from "http";
 import compression from "compression";
 import cors from "cors";
 import dotenv from "dotenv";
-import morgan from "morgan";
-import helmet from "helmet";
-import { Horizon } from "@stellar/stellar-sdk";
-import swaggerUi from "swagger-ui-express";
-import marketRatesRouter from "./routes/marketRates";
-import historyRouter from "./routes/history";
-import statsRouter from "./routes/stats";
-import intelligenceRouter from "./routes/intelligence";
-import priceUpdatesRouter from "./routes/priceUpdates";
-import assetsRouter from "./routes/assets";
-import statusRouter from "./routes/status";
+import app from "./app";
 import prisma from "./lib/prisma";
 import { disconnectRedis } from "./lib/redis";
 import { initSocket } from "./lib/socket";
 import { SorobanEventListener } from "./services/sorobanEventListener";
-import { specs } from "./lib/swagger";
 import { multiSigSubmissionService } from "./services/multiSigSubmissionService";
-import { apiKeyMiddleware } from "./middleware/apiKeyMiddleware";
-import { rateLimitMiddleware } from "./middleware/rateLimitMiddleware";
 import { validateEnv } from "./utils/envValidator";
 import { hourlyAverageService } from "./services/hourlyAverageService";
 
@@ -60,7 +46,6 @@ if (!dashboardUrl) {
   process.exit(1);
 }
 
-const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Horizon server for health checks
