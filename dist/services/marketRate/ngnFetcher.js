@@ -1,6 +1,7 @@
 import axios from "axios";
-import { filterOutliers, calculateWeightedAverage } from "./types";
+import { calculateWeightedAverage, filterOutliers, } from "./types";
 import { withRetry } from "../../utils/retryUtil.js";
+import { getNGNProviderWeight, } from "../../config/providerWeights.js";
 function parseAmount(value) {
     if (value == null)
         return null;
@@ -12,12 +13,12 @@ function parseAmount(value) {
 /**
  * NGN/XLM rate fetcher.
  *
- * Primary path uses VTpass {@link https://www.vtpass.com/documentation/variation-codes/ service-variations}
- * to read a configured variation's `variation_amount` as the Naira price for one unit of the underlying
- * SKU (configure a 1 USD/BUSD reference variation so `variation_amount` ≈ NGN per USD). That value is
- * multiplied by CoinGecko XLM/USD for NGN per XLM.
+ * Primary path uses VTpass service variations to read a configured
+ * variation's `variation_amount` as the Naira price for one unit of
+ * the underlying SKU. That value is multiplied by CoinGecko XLM/USD
+ * for NGN per XLM.
  *
- * Falls back to CoinGecko XLM/NGN directly, then XLM/USD × USD→NGN (open.er-api), matching other fetchers.
+ * Falls back to CoinGecko XLM/NGN directly, then XLM/USD x USD->NGN.
  */
 export class NGNRateFetcher {
     coinGeckoUrl = "https://api.coingecko.com/api/v3/simple/price?ids=stellar&vs_currencies=ngn,usd&include_last_updated_at=true";
@@ -71,7 +72,6 @@ export class NGNRateFetcher {
     }
     async fetchRate() {
         const prices = [];
-        // Strategy 1: VTpass NGN-per-USD (variation) × CoinGecko XLM/USD
         try {
             const vt = await this.fetchNgnPerUsdFromVtpass();
             if (vt) {
@@ -91,7 +91,7 @@ export class NGNRateFetcher {
                         rate: usd * vt.ngnPerUsd,
                         timestamp: ts,
                         source: "VTpass variation + CoinGecko (XLM/USD)",
-                        trustLevel: "new",
+                        providerKey: "vtpassCoinGeckoUsd",
                     });
                 }
             }
@@ -99,7 +99,6 @@ export class NGNRateFetcher {
         catch {
             console.debug("VTpass + CoinGecko XLM/USD failed");
         }
-        // Strategy 2: CoinGecko direct XLM/NGN
         try {
             const coinGeckoResponse = await withRetry(() => axios.get(this.coinGeckoUrl, {
                 timeout: 10000,
@@ -118,14 +117,13 @@ export class NGNRateFetcher {
                     rate: stellarPrice.ngn,
                     timestamp: lastUpdatedAt,
                     source: "CoinGecko (direct NGN)",
-                    trustLevel: "standard",
+                    providerKey: "coinGeckoDirectNgn",
                 });
             }
         }
         catch {
             console.debug("CoinGecko direct NGN failed");
         }
-        // Strategy 3: CoinGecko XLM/USD × USD/NGN (open.er-api)
         try {
             const coinGeckoResponse = await withRetry(() => axios.get(this.coinGeckoUrl, {
                 timeout: 10000,
@@ -156,8 +154,8 @@ export class NGNRateFetcher {
                     prices.push({
                         rate: stellarPrice.usd * usdToNgn,
                         timestamp: fxTimestamp > lastUpdatedAt ? fxTimestamp : lastUpdatedAt,
-                        source: "CoinGecko + ExchangeRate API (USD→NGN)",
-                        trustLevel: "trusted",
+                        source: "CoinGecko + ExchangeRate API (USD->NGN)",
+                        providerKey: "coinGeckoExchangeRateUsdNgn",
                     });
                 }
             }
@@ -165,23 +163,23 @@ export class NGNRateFetcher {
         catch {
             console.debug("CoinGecko + ExchangeRate API (NGN) failed");
         }
-        if (prices.length > 0) {
-            let rateValues = prices.map((p) => p.rate).filter(p => p > 0);
-            rateValues = filterOutliers(rateValues);
-            const mostRecentTimestamp = prices.reduce((latest, p) => (p.timestamp > latest ? p.timestamp : latest), prices[0]?.timestamp ?? new Date());
-            const weightedInput = prices.map((p) => ({
-                value: p.rate,
-                trustLevel: p.trustLevel,
-            }));
-            const weightedRate = calculateWeightedAverage(weightedInput);
-            return {
-                currency: "NGN",
-                rate: weightedRate,
-                timestamp: mostRecentTimestamp,
-                source: `Weighted average of ${prices.length} sources (outliers filtered)`,
-            };
+        if (prices.length === 0) {
+            throw new Error("All NGN rate sources failed");
         }
-        throw new Error("All NGN rate sources failed");
+        const filteredRateValues = filterOutliers(prices.map((p) => p.rate).filter((rate) => rate > 0));
+        const filteredPrices = prices.filter((price) => filteredRateValues.includes(price.rate));
+        const pricesToUse = filteredPrices.length > 0 ? filteredPrices : prices;
+        const mostRecentTimestamp = prices.reduce((latest, p) => (p.timestamp > latest ? p.timestamp : latest), prices[0]?.timestamp ?? new Date());
+        const weightedRate = calculateWeightedAverage(pricesToUse.map((price) => ({
+            value: price.rate,
+            weight: getNGNProviderWeight(price.providerKey),
+        })));
+        return {
+            currency: "NGN",
+            rate: weightedRate,
+            timestamp: mostRecentTimestamp,
+            source: `Weighted average of ${pricesToUse.length} sources (outliers filtered)`,
+        };
     }
     async isHealthy() {
         try {

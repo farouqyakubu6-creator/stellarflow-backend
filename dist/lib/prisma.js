@@ -1,6 +1,6 @@
-// Prisma Client Singleton
-// Prevents multiple instances during development hot-reloading
 import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import pg from "pg";
 import dotenv from "dotenv";
 // Ensure environment variables are loaded
 dotenv.config();
@@ -11,7 +11,13 @@ export const prisma = new Proxy({}, {
         if (!globalForPrisma.prisma) {
             // Ensure environment variables are loaded before initialization
             dotenv.config();
-            globalForPrisma.prisma = new PrismaClient();
+            const connectionString = process.env.DATABASE_URL;
+            if (!connectionString) {
+                throw new Error("DATABASE_URL must be defined");
+            }
+            const pool = new pg.Pool({ connectionString });
+            const adapter = new PrismaPg(pool);
+            globalForPrisma.prisma = new PrismaClient({ adapter });
         }
         const value = globalForPrisma.prisma[prop];
         if (typeof value === "function") {
@@ -20,9 +26,5 @@ export const prisma = new Proxy({}, {
         return value;
     },
 });
-if (process.env.NODE_ENV !== "production") {
-    // We still want to preserve the singleton behavior
-    // Note: globalForPrisma.prisma will be populated on first access
-}
 export default prisma;
 //# sourceMappingURL=prisma.js.map

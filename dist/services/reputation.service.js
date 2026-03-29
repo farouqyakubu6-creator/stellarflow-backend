@@ -1,5 +1,4 @@
-import { PrismaClient } from '@prisma/client';
-const prisma = new PrismaClient();
+import prisma from '../lib/prisma';
 export class ReputationService {
     async recordSuccess(providerName, endpoint, latencyMs) {
         const existing = await prisma.providerReputation.findUnique({

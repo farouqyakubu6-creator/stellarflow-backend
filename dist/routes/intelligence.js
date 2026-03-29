@@ -3,7 +3,7 @@ import { intelligenceService } from "../services/intelligenceService";
 const router = Router();
 /**
  * @swagger
- * /api/intelligence/price-change/{currency}:
+ * /api/v1/intelligence/price-change/{currency}:
  *   get:
  *     tags:
  *       - Intelligence
@@ -54,7 +54,7 @@ router.get("/price-change/:currency", async (req, res) => {
 });
 /**
  * @swagger
- * /api/intelligence/stale:
+ * /api/v1/intelligence/stale:
  *   get:
  *     tags:
  *       - Intelligence

@@ -3,6 +3,7 @@ import { createServer } from "http";
 import cors from "cors";
 import dotenv from "dotenv";
 import morgan from "morgan";
+import helmet from "helmet";
 import { Horizon } from "@stellar/stellar-sdk";
 import swaggerUi from "swagger-ui-express";
 import marketRatesRouter from "./routes/marketRates";
@@ -11,6 +12,7 @@ import statsRouter from "./routes/stats";
 import intelligenceRouter from "./routes/intelligence";
 import priceUpdatesRouter from "./routes/priceUpdates";
 import assetsRouter from "./routes/assets";
+import statusRouter from "./routes/status";
 import prisma from "./lib/prisma";
 import { initSocket } from "./lib/socket";
 import { SorobanEventListener } from "./services/sorobanEventListener";
@@ -18,6 +20,7 @@ import { specs } from "./lib/swagger";
 import { multiSigSubmissionService } from "./services/multiSigSubmissionService";
 import { apiKeyMiddleware } from "./middleware/apiKeyMiddleware";
 import { validateEnv } from "./utils/envValidator";
+import { hourlyAverageService } from "./services/hourlyAverageService";
 // Load environment variables
 dotenv.config();
 // [OPS] Implement "Environment Variable" Check on Start
@@ -64,10 +67,39 @@ app.use(cors({
     },
     credentials: true,
 }));
+// Security headers with Helmet - placed early before routes
+// Configured for API backend with minimal CSP to avoid breaking Swagger UI or frontend integration
+app.use(helmet({
+    // Content Security Policy - minimal config for API backend
+    // Allows Swagger UI to function while providing basic XSS protection
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "'unsafe-inline'"], // 'unsafe-inline' needed for Swagger UI
+            styleSrc: ["'self'", "'unsafe-inline'"], // 'unsafe-inline' needed for Swagger UI inline styles
+            imgSrc: ["'self'", "data:", "https:"], // Allow data: for Swagger UI icons, https: for external images
+            fontSrc: ["'self'", "https:"], // Allow fonts from https (Swagger UI uses cdnjs)
+            connectSrc: ["'self'", "https:"], // Allow API calls to any https endpoint
+            frameAncestors: ["'none'"], // Prevent clickjacking
+        },
+    },
+    // X-Content-Type-Options: nosniff - prevents MIME type sniffing
+    noSniff: true,
+    // X-Frame-Options: DENY - prevents clickjacking (also covered by CSP frameAncestors)
+    frameguard: { action: "deny" },
+    // Referrer-Policy: strict-origin-when-cross-origin - sends referrer only to same-origin
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+    // X-XSS-Protection is deprecated and not recommended (modern browsers use CSP instead)
+    xssFilter: false,
+    // Hide X-Powered-By header to reduce fingerprinting
+    hidePoweredBy: true,
+    // Strict-Transport-Security for HTTPS enforcement (only if behind HTTPS proxy)
+    hsts: { maxAge: 31536000, includeSubDomains: false, preload: false },
+}));
 app.use(express.json());
 // Swagger documentation
-app.use("/api/docs", swaggerUi.serve);
-app.get("/api/docs", swaggerUi.setup(specs, {
+app.use("/api/v1/docs", swaggerUi.serve);
+app.get("/api/v1/docs", swaggerUi.setup(specs, {
     swaggerOptions: {
         persistAuthorization: true,
     },
@@ -77,15 +109,16 @@ app.get("/api/docs", swaggerUi.setup(specs, {
   `,
     customSiteTitle: "StellarFlow API Documentation",
 }));
-// Apply API Key Middleware to all /api routes
-app.use("/api", apiKeyMiddleware);
+// Apply API Key Middleware to all /api/v1 routes
+app.use("/api/v1", apiKeyMiddleware);
 // Routes
-app.use("/api/market-rates", marketRatesRouter);
-app.use("/api/history", historyRouter);
-app.use("/api/stats", statsRouter);
-app.use("/api/intelligence", intelligenceRouter);
-app.use("/api/price-updates", priceUpdatesRouter);
-app.use("/api/assets", assetsRouter);
+app.use("/api/v1/market-rates", marketRatesRouter);
+app.use("/api/v1/history", historyRouter);
+app.use("/api/v1/stats", statsRouter);
+app.use("/api/v1/intelligence", intelligenceRouter);
+app.use("/api/v1/price-updates", priceUpdatesRouter);
+app.use("/api/v1/assets", assetsRouter);
+app.use("/api/v1/status", statusRouter);
 // Health check endpoint
 /**
  * @swagger
@@ -190,18 +223,18 @@ app.get("/", (req, res) => {
         endpoints: {
             health: "/health",
             marketRates: {
-                allRates: "/api/market-rates/rates",
-                singleRate: "/api/market-rates/rate/:currency",
-                health: "/api/market-rates/health",
-                currencies: "/api/market-rates/currencies",
-                cache: "/api/market-rates/cache",
-                clearCache: "POST /api/market-rates/cache/clear",
+                allRates: "/api/v1/market-rates/rates",
+                singleRate: "/api/v1/market-rates/rate/:currency",
+                health: "/api/v1/market-rates/health",
+                currencies: "/api/v1/market-rates/currencies",
+                cache: "/api/v1/market-rates/cache",
+                clearCache: "POST /api/v1/market-rates/cache/clear",
             },
             stats: {
-                volume: "/api/stats/volume?date=YYYY-MM-DD",
+                volume: "/api/v1/stats/volume?date=YYYY-MM-DD",
             },
             history: {
-                assetHistory: "/api/history/:asset?range=1d|7d|30d|90d",
+                assetHistory: "/api/v1/history/:asset?range=1d|7d|30d|90d",
             },
         },
     });
@@ -249,6 +282,7 @@ const shutdown = async (signal) => {
     try {
         sorobanEventListener?.stop();
         multiSigSubmissionService.stop();
+        hourlyAverageService.stop();
         await closeHttpServer();
         console.log("HTTP server closed.");
         await prisma.$disconnect();
@@ -301,6 +335,16 @@ httpServer.listen(PORT, () => {
         catch (err) {
             console.warn("Multi-sig submission service not started:", err instanceof Error ? err.message : err);
         }
+    }
+    // Start background hourly average job
+    try {
+        hourlyAverageService.start().catch((err) => {
+            console.error("Failed to start hourly average service:", err);
+        });
+        console.log(`📊 Hourly average service started`);
+    }
+    catch (err) {
+        console.warn("Hourly average service not started:", err instanceof Error ? err.message : err);
     }
 });
 export default app;

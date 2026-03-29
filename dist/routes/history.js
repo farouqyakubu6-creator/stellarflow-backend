@@ -9,7 +9,7 @@ const RANGE_MAP = {
 };
 /**
  * @swagger
- * /api/history/{asset}:
+ * /api/v1/history/{asset}:
  *   get:
  *     tags:
  *       - History
@@ -66,8 +66,8 @@ const RANGE_MAP = {
  *       '500':
  *         description: Internal server error
  */
-// GET /api/history/:asset?range=7d
-// GET /api/history/:asset?from=2024-01-01&to=2024-01-07
+// GET /api/v1/history/:asset?range=7d
+// GET /api/v1/history/:asset?from=2024-01-01&to=2024-01-07
 router.get("/:asset", async (req, res) => {
     const asset = req.params.asset.toUpperCase();
     const rangeParam = req.query.range;

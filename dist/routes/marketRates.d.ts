@@ -1,6 +1,6 @@
 /**
  * @swagger
- * /api/market-rates/rate/{currency}:
+ * /api/v1/market-rates/rate/{currency}:
  *   get:
  *     tags:
  *       - Market Rates

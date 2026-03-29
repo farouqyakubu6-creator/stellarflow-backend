@@ -9,20 +9,26 @@ export class WebhookService {
         this.platform = process.env.NOTIFICATION_PLATFORM || "slack";
     }
     async sendErrorNotification(errorDetails) {
-        if (!this.webhookUrl)
+        if (!this.webhookUrl) {
             return;
+        }
         const message = this.formatErrorMessage(errorDetails);
         await this.postMessage(message);
     }
     async sendManualReviewNotification(reviewDetails) {
-        if (!this.webhookUrl)
+        if (!this.webhookUrl) {
             return;
+        }
         const message = this.formatReviewMessage(reviewDetails);
         await this.postMessage(message);
     }
     async postMessage(message) {
+        if (!this.webhookUrl) {
+            return;
+        }
+        const webhookUrl = this.webhookUrl;
         try {
-            await withRetry(() => axios.post(this.webhookUrl, message, {
+            await withRetry(() => axios.post(webhookUrl, message, {
                 headers: { "Content-Type": "application/json" },
                 timeout: 5000,
             }), {

@@ -3,7 +3,7 @@ import prisma from "../lib/prisma";
 const router = Router();
 /**
  * @swagger
- * /api/assets:
+ * /api/v1/assets:
  *   get:
  *     tags:
  *       - Assets

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import prisma from "../lib/prisma";
 const router = Router();
-// GET /api/stats/volume?date=2024-01-15
+// GET /api/v1/stats/volume?date=2024-01-15
 router.get("/volume", async (req, res) => {
     try {
         const dateParam = req.query.date;

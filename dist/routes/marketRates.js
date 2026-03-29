@@ -4,7 +4,7 @@ import { MarketRateService } from "../services/marketRate";
 const marketRateService = new MarketRateService();
 /**
  * @swagger
- * /api/market-rates/rate/{currency}:
+ * /api/v1/market-rates/rate/{currency}:
  *   get:
  *     tags:
  *       - Market Rates
@@ -40,7 +40,7 @@ const router = Router();
 router.get("/rate/:currency", getRate);
 /**
  * @swagger
- * /api/market-rates/rates:
+ * /api/v1/market-rates/rates:
  *   get:
  *     tags:
  *       - Market Rates
@@ -71,7 +71,7 @@ router.get("/rate/:currency", getRate);
 router.get("/rates", getAllRates);
 /**
  * @swagger
- * /api/market-rates/latest:
+ * /api/v1/market-rates/latest:
  *   get:
  *     tags:
  *       - Market Rates
@@ -83,7 +83,7 @@ router.get("/rates", getAllRates);
  *       '500':
  *         description: Internal server error
  */
-// GET /api/market-rates/latest
+// GET /api/v1/market-rates/latest
 router.get("/latest", async (req, res) => {
     try {
         const result = await marketRateService.getLatestPrices();
@@ -113,7 +113,7 @@ router.get("/latest", async (req, res) => {
 });
 /**
  * @swagger
- * /api/market-rates/reviews/pending:
+ * /api/v1/market-rates/reviews/pending:
  *   get:
  *     tags:
  *       - Market Rates
@@ -144,7 +144,7 @@ router.get("/reviews/pending", async (req, res) => {
 });
 /**
  * @swagger
- * /api/market-rates/reviews/{id}/approve:
+ * /api/v1/market-rates/reviews/{id}/approve:
  *   post:
  *     tags:
  *       - Market Rates
@@ -204,7 +204,7 @@ router.post("/reviews/:id/approve", async (req, res) => {
 });
 /**
  * @swagger
- * /api/market-rates/reviews/{id}/reject:
+ * /api/v1/market-rates/reviews/{id}/reject:
  *   post:
  *     tags:
  *       - Market Rates
@@ -264,7 +264,7 @@ router.post("/reviews/:id/reject", async (req, res) => {
 });
 /**
  * @swagger
- * /api/market-rates/health:
+ * /api/v1/market-rates/health:
  *   get:
  *     tags:
  *       - Market Rates
@@ -295,7 +295,7 @@ router.get("/health", async (req, res) => {
 });
 /**
  * @swagger
- * /api/market-rates/currencies:
+ * /api/v1/market-rates/currencies:
  *   get:
  *     tags:
  *       - Market Rates
@@ -336,7 +336,7 @@ router.get("/currencies", (req, res) => {
 });
 /**
  * @swagger
- * /api/market-rates/cache:
+ * /api/v1/market-rates/cache:
  *   get:
  *     tags:
  *       - Market Rates
@@ -366,7 +366,7 @@ router.get("/cache", (req, res) => {
 });
 /**
  * @swagger
- * /api/market-rates/cache/clear:
+ * /api/v1/market-rates/cache/clear:
  *   post:
  *     tags:
  *       - Market Rates

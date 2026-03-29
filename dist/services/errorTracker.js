@@ -13,7 +13,6 @@ export class ErrorTracker {
             existing.count += 1;
             existing.errors.push(errorDetails);
             this.failureCounters.set(serviceKey, existing);
-            // attempt non-blocking DB write
             this.logError(serviceKey, errorDetails);
             return existing.count >= this.threshold;
         }
@@ -27,11 +26,12 @@ export class ErrorTracker {
     reset(serviceKey) {
         this.failureCounters.delete(serviceKey);
     }
-    // private helper - write an error log to the DB but don't throw on failure
+    // Write an error log without breaking the caller if DB logging fails.
     async logError(serviceKey, errorDetails) {
         try {
             const clientAny = prisma;
-            if (clientAny?.errorLog && typeof clientAny.errorLog.create === "function") {
+            if (clientAny?.errorLog &&
+                typeof clientAny.errorLog.create === "function") {
                 await clientAny.errorLog.create({
                     data: {
                         providerName: serviceKey,
@@ -44,7 +44,7 @@ export class ErrorTracker {
             }
         }
         catch {
-            // swallow DB errors to avoid breaking the service
+            // Swallow DB errors to avoid breaking the service.
         }
     }
 }

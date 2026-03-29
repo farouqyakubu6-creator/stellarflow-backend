@@ -6,14 +6,17 @@ import { multiSigService } from "../multiSigService";
 import { getIO } from "../../lib/socket";
 import prisma from "../../lib/prisma";
 import dotenv from "dotenv";
+import { normalizeDateToUTC } from "../../utils/timeUtils";
 dotenv.config();
 // Global import for priceReviewService
 import { priceReviewService } from "../priceReviewService";
 export class MarketRateService {
     fetchers = new Map();
     cache = new Map();
+    latestPricesCache = null;
     stellarService;
     CACHE_DURATION_MS = 30000; // 30 seconds
+    LATEST_PRICES_CACHE_DURATION_MS = 10000; // 10 seconds
     multiSigEnabled;
     remoteOracleServers = [];
     constructor() {
@@ -96,9 +99,16 @@ export class MarketRateService {
                         : "Unknown fetcher error",
                 };
             }
-            const reviewAssessment = await priceReviewService.assessRate(rate);
-            const enrichedRate = {
+            const normalizedRate = {
                 ...rate,
+                timestamp: normalizeDateToUTC(rate.timestamp),
+                comparisonTimestamp: rate.comparisonTimestamp
+                    ? normalizeDateToUTC(rate.comparisonTimestamp)
+                    : undefined,
+            };
+            const reviewAssessment = await priceReviewService.assessRate(normalizedRate);
+            const enrichedRate = {
+                ...normalizedRate,
                 manualReviewRequired: reviewAssessment.manualReviewRequired,
                 reviewId: reviewAssessment.reviewRecordId,
                 contractSubmissionSkipped: reviewAssessment.manualReviewRequired,
@@ -161,20 +171,21 @@ export class MarketRateService {
             });
             // Persist to price history for sparkline charts
             try {
+                const normalizedTimestamp = normalizeDateToUTC(enrichedRate.timestamp);
                 await prisma.priceHistory.upsert({
                     where: {
                         currency_source_timestamp: {
                             currency: currency.toUpperCase(),
-                            source: rate.source,
-                            timestamp: rate.timestamp,
+                            source: enrichedRate.source,
+                            timestamp: normalizedTimestamp,
                         },
                     },
                     update: {},
                     create: {
                         currency: currency.toUpperCase(),
-                        rate: rate.rate,
-                        source: rate.source,
-                        timestamp: rate.timestamp,
+                        rate: enrichedRate.rate,
+                        source: enrichedRate.source,
+                        timestamp: normalizedTimestamp,
                     },
                 });
             }
@@ -230,6 +241,10 @@ export class MarketRateService {
         return Array.from(this.fetchers.keys());
     }
     async getLatestPrices() {
+        const cachedLatestPrices = this.latestPricesCache;
+        if (cachedLatestPrices && cachedLatestPrices.expiry > new Date()) {
+            return cachedLatestPrices.response;
+        }
         const results = await this.getAllRates();
         const successfulRates = results
             .filter((result) => result.success && result.data)
@@ -239,15 +254,23 @@ export class MarketRateService {
             .map((result) => result.error)
             .filter((error) => !!error);
         const allSuccessful = successfulRates.length > 0 && errorMessages.length === 0;
-        return {
+        const response = {
             success: allSuccessful,
             data: successfulRates,
             ...(errorMessages.length > 0 && { error: errorMessages[0] }),
             ...(errorMessages.length > 0 && { errors: errorMessages }),
         };
+        if (response.success) {
+            this.latestPricesCache = {
+                response,
+                expiry: new Date(Date.now() + this.LATEST_PRICES_CACHE_DURATION_MS),
+            };
+        }
+        return response;
     }
     clearCache() {
         this.cache.clear();
+        this.latestPricesCache = null;
     }
     async getPendingReviews() {
         return priceReviewService.getPendingReviews();

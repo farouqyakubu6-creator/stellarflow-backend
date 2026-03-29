@@ -2,8 +2,10 @@ import { FetcherResponse, AggregatedFetcherResponse } from "./types";
 export declare class MarketRateService {
     private fetchers;
     private cache;
+    private latestPricesCache;
     private stellarService;
     private readonly CACHE_DURATION_MS;
+    private readonly LATEST_PRICES_CACHE_DURATION_MS;
     private multiSigEnabled;
     private remoteOracleServers;
     constructor();
