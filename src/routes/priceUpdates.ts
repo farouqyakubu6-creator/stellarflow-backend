@@ -231,7 +231,7 @@ router.get("/multi-sig/pending", async (req: Request, res: Response) => {
 
     res.json({
       success: true,
-      data: pendingPrices.map((price) => ({
+      data: pendingPrices.map((price: any) => ({
         id: price.id,
         currency: price.currency,
         rate: price.rate,
@@ -297,7 +297,7 @@ router.get(
           multiSigPriceId: multiSigPrice.id,
           currency: multiSigPrice.currency,
           rate: multiSigPrice.rate,
-          signatures: signatures.map((sig) => ({
+          signatures: signatures.map((sig: any) => ({
             signerPublicKey: sig.signerPublicKey,
             signerName: sig.signerName,
             signature: sig.signature,
