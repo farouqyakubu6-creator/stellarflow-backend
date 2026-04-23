@@ -6,6 +6,7 @@ import { Horizon } from "@stellar/stellar-sdk";
 import marketRatesRouter from "./routes/marketRates";
 import historyRouter from "./routes/history";
 import priceUpdatesRouter from "./routes/priceUpdates";
+import statsRouter from "./routes/stats";
 import prisma from "./lib/prisma";
 import { initSocket } from "./lib/socket";
 import { SorobanEventListener } from "./services/sorobanEventListener";
@@ -52,6 +53,7 @@ app.use(express.json());
 app.use("/api/market-rates", marketRatesRouter);
 app.use("/api/history", historyRouter);
 app.use("/api/price-updates", priceUpdatesRouter);
+app.use("/api/stats", statsRouter);
 
 // Health check endpoint
 app.get("/health", async (req, res) => {
@@ -103,6 +105,9 @@ app.get("/", (req, res) => {
         currencies: "/api/market-rates/currencies",
         cache: "/api/market-rates/cache",
         clearCache: "POST /api/market-rates/cache/clear",
+      },
+      stats: {
+        relayers: "/api/stats/relayers",
       },
     },
   });
