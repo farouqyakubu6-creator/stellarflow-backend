@@ -16,6 +16,7 @@ import derivedAssetsRouter from "./routes/derivedAssets";
 import adminRouter from "./routes/admin";
 import { apiKeyMiddleware } from "./middleware/apiKeyMiddleware";
 import { rateLimitMiddleware } from "./middleware/rateLimitMiddleware";
+import { maintenanceMiddleware } from "./middleware/maintenanceMiddleware";
 import { specs } from "./lib/swagger";
 
 dotenv.config();
@@ -28,6 +29,9 @@ const dashboardUrl =
   "http://localhost:3000";
 
 app.use(morgan("dev"));
+
+// Maintenance mode middleware: must be early in the chain
+app.use(maintenanceMiddleware);
 app.use(
   cors({
     origin: (origin, callback) => {
