@@ -15,6 +15,7 @@ import { enableGlobalLogMasking } from "./utils/logMasker";
 import { hourlyAverageService } from "./services/hourlyAverageService";
 import { metricsMiddleware, metricsEndpoint } from "./middleware/metrics";
 import { watchConfig } from "./config/configWatcher";
+import { validateDatabaseSchema } from "./utils/dbValidator";
 
 // Load environment variables
 dotenv.config();
@@ -24,6 +25,9 @@ enableGlobalLogMasking();
 
 // [OPS] Implement "Environment Variable" Check on Start
 validateEnv();
+
+// [OPS] Validate database schema on startup
+await validateDatabaseSchema();
 
 // Validate required environment variables
 const requiredEnvVars = ["STELLAR_SECRET", "DATABASE_URL"] as const;
