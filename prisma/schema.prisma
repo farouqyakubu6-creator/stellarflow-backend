@@ -194,3 +194,46 @@ model ComplianceMetadata {
   @@index([createdAt])
   @@index([relayerName, createdAt])
 }
+
+// ============================================================
+// StellarFlow — Prisma Schema (scope-aware API keys)
+// ============================================================
+// Only the ApiKey model is shown; merge the rest of your
+// existing schema.prisma around it.
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------------------------------
+// Enum: the two scopes the system recognises
+// ------------------------------------------------------------------
+enum ApiKeyScope {
+  read   // GET endpoints only
+  write  // POST / PUT / PATCH / DELETE endpoints
+}
+
+// ------------------------------------------------------------------
+// ApiKey — one row per issued key
+// ------------------------------------------------------------------
+model ApiKey {
+  id          String       @id @default(cuid())
+  key         String       @unique          // hashed with SHA-256 before storage
+  label       String?                       // human-readable name ("CI runner", "dashboard")
+  scopes      ApiKeyScope[]                 // e.g. [read], [read, write]
+  ownerId     String?                       // optional FK to a User / Wallet table
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?                     // null = never expires
+
+  @@index([key])
+  @@index([ownerId])
+}
