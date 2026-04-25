@@ -1,20 +1,18 @@
 generator client {
   provider = "prisma-client-js"
 }
-
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
 }
-
 
 model PriceHistory {
   id          Int       @id @default(autoincrement())
-  currency    String    @db.VarChar(10)
-  rate        Decimal   @db.Decimal(20, 10)
-  bid         Decimal?  @db.Decimal(20, 10) // Buy price (optional)
-  ask         Decimal?  @db.Decimal(20, 10) // Sell price (optional)
-  source      String    @db.VarChar(100)
-  timestamp   DateTime  @db.Timestamp(3)
+  currency    String
+  rate        Decimal
+  bid         Decimal? // Buy price (optional)
+  ask         Decimal? // Sell price (optional)
+  source      String
+  timestamp   DateTime
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   currencyRef Currency? @relation(fields: [currency], references: [code])
@@ -25,9 +23,9 @@ model PriceHistory {
 }
 
 model Currency {
-  code        String    @id @db.VarChar(10)  // e.g., "GHS", "KES"
-  name        String    @db.VarChar(100)      // Full name e.g., "Ghanaian Cedi"
-  symbol      String    @db.VarChar(5)        // Currency symbol e.g., "₵", "KES"
+  code        String    @id  // e.g., "GHS", "KES"
+  name        String      // Full name e.g., "Ghanaian Cedi"
+  symbol      String      // Currency symbol e.g., "₵", "KES"
   decimals    Int       @default(2)           // Decimal places for display
   isActive    Boolean   @default(true)        // Whether this currency is currently supported
   
@@ -41,12 +39,12 @@ model Currency {
 // Stores prices confirmed on Stellar via manageData or Soroban contract events
 model OnChainPrice {
   id            Int       @id @default(autoincrement())
-  currency      String    @db.VarChar(10)    // e.g., "NGN", "KES", "GHS"
-  rate          Decimal   @db.Decimal(20, 10) // The confirmed price
-  txHash        String    @db.VarChar(64)    // Stellar transaction hash
-  memoId        String?   @db.VarChar(28)    // Memo ID from transaction (e.g., SF-NGN-1234567890-001)
+  currency      String    // e.g., "NGN", "KES", "GHS"
+  rate          Decimal   // The confirmed price
+  txHash        String    // Stellar transaction hash
+  memoId        String?   // Memo ID from transaction (e.g., SF-NGN-1234567890-001)
   ledgerSeq     Int                          // Ledger sequence number
-  confirmedAt   DateTime  @db.Timestamp(3)   // When the transaction was confirmed on-chain
+  confirmedAt   DateTime   // When transaction was confirmed on-chain
 
   @@index([currency, confirmedAt])
   @@index([txHash])
@@ -58,14 +56,14 @@ model OnChainPrice {
 
 model ProviderReputation {
   id              Int       @id @default(autoincrement())
-  providerName    String    @db.VarChar(100)  // e.g., "CoinGecko", "ExchangeRateAPI"
-  endpoint        String?   @db.VarChar(255)  // Specific endpoint URL or identifier
-  status          String    @db.VarChar(20)   // "online", "offline", "degraded"
+  providerName    String  // e.g., "CoinGecko", "ExchangeRateAPI"
+  endpoint        String?  // Specific endpoint URL or identifier
+  status          String   // "online", "offline", "degraded"
   totalRequests   Int       @default(0)       // Total API calls made
   successfulRequests Int    @default(0)       // Successful responses
   failedRequests  Int       @default(0)       // Failed responses
   incorrectResponses Int   @default(0)        // Responses with invalid/incorrect data
-  averageLatency  Float?    @db.DoublePrecision // Average response time in ms
+  averageLatency  Float?    // Average response time in ms
   lastSuccess     DateTime?                    // Last successful response timestamp
   lastFailure     DateTime?                    // Last failed response timestamp
   lastIncorrect   DateTime?                    // Last incorrect response timestamp
@@ -73,7 +71,7 @@ model ProviderReputation {
   consecutiveIncorrect Int @default(0)        // Current streak of consecutive incorrect responses
   
   // Reliability metrics
-  reliabilityScore Float?   @db.DoublePrecision // Calculated score (0-100)
+  reliabilityScore Float?   // Calculated score (0-100)
   lastUpdated     DateTime  @updatedAt
   
   createdAt       DateTime  @default(now())
@@ -90,18 +88,18 @@ model ProviderReputation {
 model MultiSigPrice {
   id                Int       @id @default(autoincrement())
   priceReviewId     Int       // Reference to the price_review_records with contract_status tracking
-  currency          String    @db.VarChar(10)   // e.g., "NGN", "KES", "GHS"
-  rate              Decimal   @db.Decimal(20, 10) // The price to be updated
-  source            String    @db.VarChar(100)  // Price source (e.g., "CoinGecko")
+  currency          String   // e.g., "NGN", "KES", "GHS"
+  rate              Decimal   // The price to be updated
+  source            String   // Price source (e.g., "CoinGecko")
   
   // Multi-sig status
-  status            String    @db.VarChar(20)   // "PENDING", "APPROVED", "REJECTED", "EXPIRED"
+  status            String   // "PENDING", "APPROVED", "REJECTED", "EXPIRED"
   requiredSignatures Int      @default(2)       // Number of signatures needed (typically 2)
   collectedSignatures Int     @default(0)       // Number of signatures collected so far
   
   // Stellar transaction details (set when fully signed)
-  memoId            String?   @db.VarChar(28)   // Memo ID from transaction
-  stellarTxHash     String?   @db.VarChar(64)   // Submitted transaction hash
+  memoId            String?   // Memo ID from transaction
+  stellarTxHash     String?   // Submitted transaction hash
   submittedAt       DateTime?                    // When transaction was submitted to Stellar
   
   // Timestamps
@@ -125,11 +123,11 @@ model MultiSigSignature {
   multiSigPrice     MultiSigPrice @relation(fields: [multiSigPriceId], references: [id], onDelete: Cascade)
   
   // Server/Signer information
-  signerPublicKey   String    @db.VarChar(56)   // Stellar public key of the signer
-  signerName        String    @db.VarChar(100)  // Human-readable name (e.g., "oracle-server-1")
+  signerPublicKey   String    // Stellar public key of the signer
+  signerName        String    // Human-readable name (e.g., "oracle-server-1")
   
   // Signature details
-  signature         String    @db.Text          // The actual XDR signature (can be long)
+  signature         String    // The actual XDR signature (can be long)
   signedAt          DateTime  @default(now())   // When the signature was created
   
   createdAt         DateTime  @default(now())
@@ -142,10 +140,10 @@ model MultiSigSignature {
 // Error log table for tracking provider/fetcher failures
 model ErrorLog {
   id           Int      @id @default(autoincrement())
-  providerName String   @db.VarChar(200) // e.g., "CoinGecko", "KESRateFetcher"
-  errorMessage String?  @db.Text
-  occurredAt   DateTime @db.Timestamp(3)
-  createdAt    DateTime @default(now())
+  providerName String   // e.g., "CoinGecko", "KESRateFetcher"
+  errorMessage String?
+  occurredAt   DateTime
+  createdAt    DateTime  @default(now())
 
   @@index([providerName])
   @@index([occurredAt])
@@ -153,21 +151,21 @@ model ErrorLog {
 
 model Relayer {
   id            Int      @id @default(autoincrement())
-  name          String   @db.VarChar(100)
-  apiKey        String   @unique @db.VarChar(255)
+  name          String
+  apiKey        String   @unique
   isActive      Boolean  @default(true)
-  allowedAssets String[]
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  allowedAssets String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 }
 
 // Hourly Statistics for smoothing out price spikes
 model HourlyStats {
   id           Int      @id @default(autoincrement())
-  currency     String   @db.VarChar(10)
-  averageRate  Decimal  @db.Decimal(20, 10)
+  currency     String
+  averageRate  Decimal
   hour         DateTime // The start of the hour this average represents
-  createdAt    DateTime @default(now())
+  createdAt    DateTime  @default(now())
 
   @@unique([currency, hour])
   @@index([hour])
@@ -177,14 +175,14 @@ model HourlyStats {
 // Tracks latency violations and other compliance events
 model ComplianceMetadata {
   id                Int       @id @default(autoincrement())
-  relayerId         Int?      // Optional link to relayer (if known)
-  relayerName       String?   @db.VarChar(100)  // Relayer name at time of violation
-  eventType         String    @db.VarChar(50)  // e.g., "LATENCY_VIOLATION", "PAYLOAD_REJECTED"
-  payloadTimestamp  DateTime? @db.Timestamp(3) // Timestamp from the relayer payload
-  receivedAt       DateTime  @db.Timestamp(3)  // When the payload was received
+  relayerId         Int?      // Optional link to the relayer (if known)
+  relayerName       String?   // Relayer name at time of violation
+  eventType         String    // e.g., "LATENCY_VIOLATION", "PAYLOAD_REJECTED"
+  payloadTimestamp  DateTime? // Timestamp from the relayer payload
+  receivedAt       DateTime  // When the payload was received
   latencyDiffMs     Int?      // Calculated latency difference in milliseconds
   thresholdMs       Int?      // The threshold that was exceeded
-  details           String?   @db.Text         // Additional JSON details about the event
+  details           String?   // Additional JSON details about the event
   resolved          Boolean   @default(false)  // Whether the violation has been addressed
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt

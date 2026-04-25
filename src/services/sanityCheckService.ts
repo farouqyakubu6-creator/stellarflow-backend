@@ -1,8 +1,8 @@
 import axios from "axios";
-import { OUTGOING_HTTP_TIMEOUT_MS } from "../../utils/httpTimeout";
-import { withRetry } from "../../utils/retryUtil";
-import { createFetcherLogger } from "../../utils/logger";
-import { webhookReporter } from "../../utils/webhookReporter";
+import { OUTGOING_HTTP_TIMEOUT_MS } from "../utils/httpTimeout";
+import { withRetry } from "../utils/retryUtil";
+import { createFetcherLogger } from "../utils/logger";
+import { webhookReporter } from "../utils/webhookReporter";
 
 interface SanityCheckResult {
   currency: string;
@@ -235,19 +235,10 @@ export class SanityCheckService {
 
 The Oracle price differs significantly from the external source. Please review.`;
 
-      await webhookReporter.sendAlert({
-        title: `Price Sanity Check Failed - ${result.currency}`,
-        message,
-        severity: "warning",
-        metadata: {
-          currency: result.currency,
-          oraclePrice: result.oraclePrice,
-          externalPrice: result.externalPrice,
-          deviationPercent: result.deviationPercent,
-          source: result.source,
-          timestamp: result.timestamp.toISOString(),
-        },
-      });
+      await webhookReporter.sendCriticalAlert(
+        `Price Sanity Check Failed - ${result.currency}: ${message}`,
+        `${result.currency} sanity check`
+      );
     } catch (error) {
       this.logger.error(
         "Failed to send sanity check alert",
