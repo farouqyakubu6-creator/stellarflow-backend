@@ -11,6 +11,7 @@ import { apiKeyMiddleware } from "./middleware/apiKeyMiddleware";
 import { latencyValidationMiddleware } from "./middleware/latencyGuardMiddleware";
 import { maintenanceMiddleware } from "./middleware/maintenanceMiddleware";
 import { rateLimitMiddleware } from "./middleware/rateLimitMiddleware";
+import { tracingMiddleware, axiosTracingMiddleware } from "./middleware/tracingMiddleware";
 import adminRouter from "./routes/admin";
 import assetsRouter from "./routes/assets";
 import derivedAssetsRouter from "./routes/derivedAssets";
@@ -21,6 +22,7 @@ import priceUpdatesRouter from "./routes/priceUpdates";
 import sanityCheckRouter from "./routes/sanityCheck";
 import statsRouter from "./routes/stats";
 import statusRouter from "./routes/status";
+import systemControlRouter from "./routes/systemControl";
 
 dotenv.config();
 
@@ -77,6 +79,10 @@ app.use(
 
 app.use(express.json());
 
+// Add tracing middleware early in the stack
+app.use(tracingMiddleware);
+app.use(axiosTracingMiddleware);
+
 app.use("/api/v1/docs", swaggerUi.serve);
 app.get(
   "/api/v1/docs",
@@ -100,6 +106,7 @@ app.use("/api/v1", apiKeyMiddleware);
 app.use("/api/v1/price-updates", latencyValidationMiddleware);
 
 app.use("/api/admin", adminMiddleware, adminRouter);
+app.use("/api/admin/system", adminMiddleware, systemControlRouter);
 app.use("/api/v1/market-rates", marketRatesRouter);
 app.use("/api/v1/history", historyRouter);
 app.use("/api/v1/stats", statsRouter);

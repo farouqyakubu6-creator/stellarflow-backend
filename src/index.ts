@@ -4,6 +4,10 @@ import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
 import { Horizon } from "@stellar/stellar-sdk";
+import marketRatesRouter from "./routes/marketRates";
+import historyRouter from "./routes/history";
+import priceUpdatesRouter from "./routes/priceUpdates";
+import statsRouter from "./routes/stats";
 import app from "./app";
 import prisma from "./lib/prisma";
 import { disconnectRedis } from "./lib/redis";
@@ -16,9 +20,21 @@ import { hourlyAverageService } from "./services/hourlyAverageService";
 import { metricsMiddleware, metricsEndpoint } from "./middleware/metrics";
 import { watchConfig } from "./config/configWatcher";
 import { validateDatabaseSchema } from "./utils/dbValidator";
+import { initializeTracing } from "./config/tracingConfig";
+import { setupAxiosTracing } from "./lib/tracing";
+import { registerTracingShutdownHandlers } from "./utils/shutdownTracing";
 
 // Load environment variables
 dotenv.config();
+
+// Initialize tracing before other services
+initializeTracing();
+
+// Setup axios tracing for HTTP requests
+setupAxiosTracing();
+
+// Register tracing shutdown handlers
+registerTracingShutdownHandlers();
 
 // Enable log masking to prevent sensitive data leaks
 enableGlobalLogMasking();
@@ -67,6 +83,16 @@ const horizonUrl =
     ? "https://horizon.stellar.org"
     : "https://horizon-testnet.stellar.org";
 const horizonServer = new Horizon.Server(horizonUrl);
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+
+// Routes
+app.use("/api/market-rates", marketRatesRouter);
+app.use("/api/history", historyRouter);
+app.use("/api/price-updates", priceUpdatesRouter);
+app.use("/api/stats", statsRouter);
 
 // Health check endpoint
 /**
@@ -195,6 +221,9 @@ app.get("/", (req, res) => {
         hourlyVolatility: "/api/v1/intelligence/hourly-volatility",
         priceChange: "/api/v1/intelligence/price-change/:currency",
         staleCurrencies: "/api/v1/intelligence/stale",
+      },
+      stats: {
+        relayers: "/api/stats/relayers",
       },
     },
   });
