@@ -2,7 +2,8 @@ import { Horizon, Keypair } from "@stellar/stellar-sdk";
 import type { ServerApi } from "@stellar/stellar-sdk/lib/horizon";
 import type { OnChainPrice } from "@prisma/client";
 import prisma from "../lib/prisma";
-import { getIO } from "../lib/socket";
+import { getIO, broadcastToSessions } from "../lib/socket";
+import stellarProvider from "../lib/stellarProvider";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -29,20 +30,16 @@ export class SorobanEventListener {
       process.env.ORACLE_SECRET_KEY || process.env.SOROBAN_ADMIN_SECRET;
     if (!secret) {
       throw new Error(
-        "ORACLE_SECRET_KEY or SOROBAN_ADMIN_SECRET not found in environment variables"
+        "ORACLE_SECRET_KEY or SOROBAN_ADMIN_SECRET not found in environment variables",
       );
     }
 
     this.oraclePublicKey = Keypair.fromSecret(secret).publicKey();
     this.pollIntervalMs = pollIntervalMs;
 
-    const network = process.env.STELLAR_NETWORK || "TESTNET";
-    const horizonUrl =
-      network === "PUBLIC"
-        ? "https://horizon.stellar.org"
-        : "https://horizon-testnet.stellar.org";
-
-    this.server = new Horizon.Server(horizonUrl);
+    // Use the shared StellarProvider so failover state is shared across all
+    // services rather than each managing its own Horizon URL.
+    this.server = stellarProvider.getServer();
   }
 
   async start(): Promise<void> {
@@ -53,7 +50,7 @@ export class SorobanEventListener {
 
     this.isRunning = true;
     console.log(
-      `[EventListener] Starting listener for account ${this.oraclePublicKey}`
+      `[EventListener] Starting listener for account ${this.oraclePublicKey}`,
     );
 
     // Initialize last processed ledger from the most recent on-chain record
@@ -63,7 +60,7 @@ export class SorobanEventListener {
     if (lastRecord) {
       this.lastProcessedLedger = lastRecord.ledgerSeq;
       console.log(
-        `[EventListener] Resuming from ledger ${this.lastProcessedLedger}`
+        `[EventListener] Resuming from ledger ${this.lastProcessedLedger}`,
       );
     }
 
@@ -87,8 +84,26 @@ export class SorobanEventListener {
     console.log("[EventListener] Stopped");
   }
 
+  restart(newIntervalMs: number): void {
+    if (!this.isRunning) return;
+    if (newIntervalMs === this.pollIntervalMs) return;
+    this.pollIntervalMs = newIntervalMs;
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+    }
+    this.pollTimer = setInterval(() => {
+      this.pollTransactions().catch((err) => {
+        console.error("[EventListener] Poll error:", err);
+      });
+    }, this.pollIntervalMs);
+    console.info(`[EventListener] Poll interval updated to ${this.pollIntervalMs}ms`);
+  }
+
   private async pollTransactions(): Promise<void> {
     try {
+      // Refresh the server reference in case a failover occurred since last poll
+      this.server = stellarProvider.getServer();
+
       const transactions = await this.server
         .transactions()
         .forAccount(this.oraclePublicKey)
@@ -128,11 +143,11 @@ export class SorobanEventListener {
         }
       }
     } catch (error) {
+      // Report to the provider — triggers a failover if this is a 5xx / network error
+      stellarProvider.reportFailure(error);
+
       // Account not found is expected for new accounts with no transactions
-      if (
-        error instanceof Error &&
-        error.message.includes("status code 404")
-      ) {
+      if (error instanceof Error && error.message.includes("status code 404")) {
         console.log("[EventListener] No transactions found for oracle account");
         return;
       }
@@ -140,9 +155,7 @@ export class SorobanEventListener {
     }
   }
 
-  private extractMemoId(
-    tx: ServerApi.TransactionRecord
-  ): string | null {
+  private extractMemoId(tx: ServerApi.TransactionRecord): string | null {
     if (tx.memo_type === "text" && tx.memo) {
       return tx.memo;
     }
@@ -151,7 +164,7 @@ export class SorobanEventListener {
 
   private async parseOperations(
     tx: ServerApi.TransactionRecord,
-    memoId: string
+    memoId: string,
   ): Promise<ConfirmedPrice[]> {
     const confirmedPrices: ConfirmedPrice[] = [];
 
@@ -184,7 +197,7 @@ export class SorobanEventListener {
 
         if (isNaN(rate)) {
           console.warn(
-            `[EventListener] Invalid rate value for ${currency}: ${valueStr}`
+            `[EventListener] Invalid rate value for ${currency}: ${valueStr}`,
           );
           continue;
         }
@@ -201,7 +214,7 @@ export class SorobanEventListener {
     } catch (error) {
       console.error(
         `[EventListener] Error parsing operations for tx ${tx.hash}:`,
-        error
+        error,
       );
     }
 
@@ -229,12 +242,12 @@ export class SorobanEventListener {
           },
         });
         console.log(
-          `[EventListener] Saved confirmed price: ${price.currency} = ${price.rate} (tx: ${price.txHash.substring(0, 8)}...)`
+          `[EventListener] Saved confirmed price: ${price.currency} = ${price.rate} (tx: ${price.txHash.substring(0, 8)}...)`,
         );
       } catch (error) {
         console.error(
           `[EventListener] Error saving price for ${price.currency}:`,
-          error
+          error,
         );
       }
     }
@@ -242,9 +255,8 @@ export class SorobanEventListener {
 
   private emitPriceUpdates(prices: ConfirmedPrice[]): void {
     try {
-      const io = getIO();
       for (const price of prices) {
-        io.emit("price:confirmed", {
+        broadcastToSessions("price:confirmed", {
           currency: price.currency,
           rate: price.rate,
           txHash: price.txHash,
@@ -258,7 +270,7 @@ export class SorobanEventListener {
   }
 
   async getLatestConfirmedPrice(
-    currency: string
+    currency: string,
   ): Promise<ConfirmedPrice | null> {
     const record = await prisma.onChainPrice.findFirst({
       where: { currency: currency.toUpperCase() },
@@ -281,7 +293,7 @@ export class SorobanEventListener {
 
   async getConfirmedPriceHistory(
     currency: string,
-    limit: number = 100
+    limit: number = 100,
   ): Promise<ConfirmedPrice[]> {
     const records = await prisma.onChainPrice.findMany({
       where: { currency: currency.toUpperCase() },
