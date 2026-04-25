@@ -1,4 +1,5 @@
 import { Horizon } from "@stellar/stellar-sdk";
+import { trace, context, SpanStatusCode } from "@opentelemetry/api";
 
 /**
  * Whether an error from the Horizon SDK should trigger a failover to the next node.
@@ -100,6 +101,41 @@ class StellarProvider {
    */
   getServer(): Horizon.Server {
     return this.server;
+  }
+
+  /**
+   * Execute a Stellar operation with tracing
+   */
+  async executeWithTracing<T>(
+    operationName: string,
+    operation: () => Promise<T>,
+    attributes?: Record<string, any>
+  ): Promise<T> {
+    const tracer = trace.getTracer('stellarflow-stellar');
+    const span = tracer.startSpan(`stellar.${operationName}`, {
+      attributes: {
+        'stellar.network': process.env.STELLAR_NETWORK || 'TESTNET',
+        'stellar.horizon_url': this.getCurrentUrl(),
+        ...attributes
+      }
+    });
+
+    try {
+      span.addEvent('stellar_operation_started');
+      const result = await operation();
+      span.addEvent('stellar_operation_completed');
+      span.setStatus({ code: SpanStatusCode.OK });
+      return result;
+    } catch (error) {
+      span.recordException(error as Error);
+      span.setStatus({ 
+        code: SpanStatusCode.ERROR, 
+        message: (error as Error).message 
+      });
+      throw error;
+    } finally {
+      span.end();
+    }
   }
 
   /**

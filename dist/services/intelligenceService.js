@@ -115,7 +115,7 @@ export class IntelligenceService {
                 windowMinutes: HOURLY_VOLATILITY_WINDOW_MINUTES,
                 windowStart,
                 windowEnd,
-                generatedAt: new Date(),
+                generatedAt: new Date(windowEnd),
                 currencies: [],
             };
         }
@@ -168,7 +168,7 @@ export class IntelligenceService {
             windowMinutes: HOURLY_VOLATILITY_WINDOW_MINUTES,
             windowStart,
             windowEnd,
-            generatedAt: new Date(),
+            generatedAt: new Date(windowEnd),
             currencies,
         };
     }

@@ -194,3 +194,90 @@ model ComplianceMetadata {
   @@index([createdAt])
   @@index([relayerName, createdAt])
 }
+
+// Pending Consensus Actions Table
+// Stores sensitive system actions that require multi-admin approval before execution
+model PendingConsensus {
+  id                Int       @id @default(autoincrement())
+  actionType        String    @db.VarChar(50)   // "HALT", "UPGRADE", "EMERGENCY_STOP"
+  actionData        String?   @db.Text           // JSON data for the action (e.g., upgrade version, halt reason)
+  status            String    @db.VarChar(20)    // "PENDING", "APPROVED", "REJECTED", "EXECUTED", "EXPIRED"
+  requiredSignatures Int     @default(2)        // Number of admin signatures required
+  collectedSignatures Int    @default(0)        // Number of signatures collected so far
+  
+  // Request information
+  requestedBy       String    @db.VarChar(100)   // Admin who initiated the request
+  requestedAt       DateTime  @default(now())    // When the request was created
+  expiresAt         DateTime                     // When the request expires (if not approved)
+  
+  // Execution information
+  executedAt        DateTime?                    // When the action was executed
+  executionResult   String?   @db.Text          // Result of the execution (success/error message)
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([actionType, status])
+  @@index([status, expiresAt])
+  @@index([requestedBy, requestedAt])
+
+  pendingSignatures PendingSignature[]
+}
+
+// Pending Action Signatures Table
+// Records admin signatures for pending consensus actions
+model PendingSignature {
+  id                    Int       @id @default(autoincrement())
+  pendingConsensusId    Int       // Reference to PendingConsensus
+  pendingConsensus      PendingConsensus @relation(fields: [pendingConsensusId], references: [id], onDelete: Cascade)
+  
+  // Admin information
+  adminPublicKey        String    @db.VarChar(56)   // Stellar public key of the admin
+  adminName             String    @db.VarChar(100)   // Human-readable admin name
+  adminRole             String    @db.VarChar(50)    // Admin role (e.g., "SUPER_ADMIN", "OPERATOR")
+  
+  // Signature details
+  signature             String    @db.Text          // Cryptographic signature
+  ipAddress             String    @db.VarChar(45)    // IP address of the signer
+  userAgent             String?   @db.VarChar(500)   // User agent of the signer
+  signedAt              DateTime  @default(now())   // When the signature was provided
+  
+  createdAt             DateTime  @default(now())
+  
+  @@unique([pendingConsensusId, adminPublicKey])  // Prevent duplicate signatures from same admin
+  @@index([pendingConsensusId])
+  @@index([adminPublicKey])
+}
+
+// Audit Log Table for System Actions
+// Comprehensive audit trail for all sensitive system operations
+model AuditLog {
+  id                    Int       @id @default(autoincrement())
+  eventType             String    @db.VarChar(50)    // e.g., "CONSENSUS_INITIATED", "CONSENSUS_APPROVED", "ACTION_EXECUTED"
+  actionType            String?   @db.VarChar(50)    // The type of action being audited (e.g., "HALT", "UPGRADE")
+  relatedId             Int?                         // ID of related record (e.g., PendingConsensus.id)
+  
+  // Actor information
+  actorPublicKey        String    @db.VarChar(56)    // Public key of the actor
+  actorName             String    @db.VarChar(100)    // Human-readable name
+  actorRole             String?   @db.VarChar(50)    // Role of the actor
+  
+  // Event details
+  eventDetails          String?   @db.Text           // JSON details about the event
+  previousState         String?   @db.Text           // Previous state before this event
+  newState              String?   @db.Text           // New state after this event
+  
+  // Request context
+  ipAddress             String?   @db.VarChar(45)    // IP address of the request
+  userAgent             String?   @db.VarChar(500)   // User agent of the request
+  
+  // Timestamps
+  occurredAt            DateTime  @db.Timestamp(3)   // When the event occurred
+  createdAt             DateTime  @default(now())
+  
+  @@index([eventType, occurredAt])
+  @@index([actionType, occurredAt])
+  @@index([actorPublicKey, occurredAt])
+  @@index([relatedId])
+  @@index([occurredAt])
+}

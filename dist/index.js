@@ -12,8 +12,17 @@ import { enableGlobalLogMasking } from "./utils/logMasker";
 import { hourlyAverageService } from "./services/hourlyAverageService";
 import { watchConfig } from "./config/configWatcher";
 import { validateDatabaseSchema } from "./utils/dbValidator";
+import { initializeTracing } from "./config/tracingConfig";
+import { setupAxiosTracing } from "./lib/tracing";
+import { registerTracingShutdownHandlers } from "./utils/shutdownTracing";
 // Load environment variables
 dotenv.config();
+// Initialize tracing before other services
+initializeTracing();
+// Setup axios tracing for HTTP requests
+setupAxiosTracing();
+// Register tracing shutdown handlers
+registerTracingShutdownHandlers();
 // Enable log masking to prevent sensitive data leaks
 enableGlobalLogMasking();
 // [OPS] Implement "Environment Variable" Check on Start

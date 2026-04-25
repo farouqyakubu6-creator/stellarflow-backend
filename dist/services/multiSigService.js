@@ -1,8 +1,8 @@
 import prisma from "../lib/prisma";
 import { Keypair } from "@stellar/stellar-sdk";
 import dotenv from "dotenv";
+import axios from "axios";
 import { assertSigningAllowed } from "../state/appState";
-/* global fetch */
 dotenv.config();
 export class MultiSigService {
     localSignerPublicKey;
@@ -136,19 +136,14 @@ export class MultiSigService {
                 memoId: multiSigPrice.memoId || "",
                 signerPublicKey: this.localSignerPublicKey,
             };
-            const response = await fetch(`${remoteServerUrl}/api/v1/price-updates/sign`, {
-                method: "POST",
+            const response = await axios.post(`${remoteServerUrl}/api/v1/price-updates/sign`, payload, {
                 headers: {
                     "Content-Type": "application/json",
                     Authorization: `Bearer ${process.env.MULTI_SIG_AUTH_TOKEN || ""}`,
                 },
-                body: JSON.stringify(payload),
+                timeout: 10000, // 10 second timeout
             });
-            if (!response.ok) {
-                const error = await response.text().catch(() => response.statusText);
-                return { success: false, error: `Remote server error: ${error}` };
-            }
-            const result = (await response.json());
+            const result = response.data;
             if (result.success === false) {
                 return {
                     success: false,

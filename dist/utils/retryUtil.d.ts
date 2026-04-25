@@ -61,5 +61,5 @@ export declare function withRetry<T>(requestFn: () => Promise<T>, config?: Retry
  * const response = await client.get('https://api.example.com/data');
  * ```
  */
-export declare function createRetryableAxiosInstance(axiosConfig?: AxiosRequestConfig, retryConfig?: RetryConfig): any;
+export declare function createRetryableAxiosInstance(axiosConfig?: AxiosRequestConfig, retryConfig?: RetryConfig): import("axios").AxiosInstance;
 //# sourceMappingURL=retryUtil.d.ts.map
