@@ -159,6 +159,25 @@ model Relayer {
   allowedAssets String[]
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  relayerRegistry RelayerRegistry?
+}
+
+// Relayer KYC Metadata Store
+// Stores legal/contact information for authorized data providers
+model RelayerRegistry {
+  id                Int      @id @default(autoincrement())
+  relayerId         Int      @unique // Reference to Relayer.id
+  relayer           Relayer  @relation(fields: [relayerId], references: [id], onDelete: Cascade)
+  
+  contactName       String   @db.VarChar(100) // Contact person's full name
+  email             String   @db.VarChar(255) // Contact email address
+  organizationName  String   @db.VarChar(100) // Organization name
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([relayerId])
 }
 
 // Hourly Statistics for smoothing out price spikes

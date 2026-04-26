@@ -5,6 +5,12 @@ import {
   renderPDF,
 } from "../services/reportService";
 import { updateSecretKey } from "../services/secretManager";
+import {
+  getRelayerRegistry,
+  getRelayerRegistryById,
+  upsertRelayerRegistry,
+  deleteRelayerRegistry,
+} from "../controllers/adminController";
 
 const router = Router();
 
@@ -167,5 +173,120 @@ router.post("/reload-secret", async (req, res) => {
     });
   }
 });
+
+/**
+ * @swagger
+ * /api/admin/relayer-registry:
+ *   get:
+ *     tags:
+ *       - Admin
+ *     summary: Get all relayer registry entries
+ *     description: Retrieve all KYC information for authorized data providers (Admin only)
+ *     responses:
+ *       '200':
+ *         description: Registry entries retrieved successfully
+ *       '500':
+ *         description: Internal server error
+ */
+router.get("/relayer-registry", getRelayerRegistry);
+
+/**
+ * @swagger
+ * /api/admin/relayer-registry/{relayerId}:
+ *   get:
+ *     tags:
+ *       - Admin
+ *     summary: Get relayer registry entry by relayer ID
+ *     description: Retrieve KYC information for a specific relayer (Admin only)
+ *     parameters:
+ *       - in: path
+ *         name: relayerId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: The relayer ID
+ *     responses:
+ *       '200':
+ *         description: Registry entry retrieved successfully
+ *       '400':
+ *         description: Invalid relayer ID
+ *       '404':
+ *         description: Registry entry not found
+ *       '500':
+ *         description: Internal server error
+ */
+router.get("/relayer-registry/:relayerId", getRelayerRegistryById);
+
+/**
+ * @swagger
+ * /api/admin/relayer-registry:
+ *   post:
+ *     tags:
+ *       - Admin
+ *     summary: Create or update relayer registry entry
+ *     description: Create or update KYC information for a relayer (Admin only)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - relayerId
+ *               - contactName
+ *               - email
+ *               - organizationName
+ *             properties:
+ *               relayerId:
+ *                 type: integer
+ *                 description: The relayer ID
+ *               contactName:
+ *                 type: string
+ *                 description: Contact person's full name
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: Contact email address
+ *               organizationName:
+ *                 type: string
+ *                 description: Organization name
+ *     responses:
+ *       '200':
+ *         description: Registry entry created/updated successfully
+ *       '400':
+ *         description: Validation error
+ *       '404':
+ *         description: Relayer not found
+ *       '500':
+ *         description: Internal server error
+ */
+router.post("/relayer-registry", upsertRelayerRegistry);
+
+/**
+ * @swagger
+ * /api/admin/relayer-registry/{relayerId}:
+ *   delete:
+ *     tags:
+ *       - Admin
+ *     summary: Delete relayer registry entry
+ *     description: Remove KYC information for a relayer (Admin only)
+ *     parameters:
+ *       - in: path
+ *         name: relayerId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: The relayer ID
+ *     responses:
+ *       '200':
+ *         description: Registry entry deleted successfully
+ *       '400':
+ *         description: Invalid relayer ID
+ *       '404':
+ *         description: Registry entry not found
+ *       '500':
+ *         description: Internal server error
+ */
+router.delete("/relayer-registry/:relayerId", deleteRelayerRegistry);
 
 export default router;
