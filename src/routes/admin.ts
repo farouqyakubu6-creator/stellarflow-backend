@@ -173,45 +173,57 @@ router.post("/reload-secret", async (req, res) => {
   }
 });
 
-const CONFIG_PATH = path.resolve(process.cwd(), "config.json");
-
-/** Joi schema for validating rate-limit update payloads */
-const rateLimitUpdateSchema = Joi.object({
-  windowMs: Joi.number().integer().min(1000).max(86_400_000).optional(),
-  maxRequests: Joi.number().integer().min(1).max(100_000).optional(),
-  enabled: Joi.boolean().optional(),
-}).min(1);
-
 /**
  * @swagger
- * /api/admin/rate-limit:
+ * /api/admin/relayer-registry:
  *   get:
  *     tags:
  *       - Admin
- *     summary: Get current global rate-limit configuration
- *     description: Returns the active rate-limit settings (windowMs, maxRequests, enabled).
+ *     summary: Get all relayer registry entries
+ *     description: Retrieve all KYC information for authorized data providers (Admin only)
  *     responses:
  *       '200':
- *         description: Current rate-limit config
+ *         description: Registry entries retrieved successfully
+ *       '500':
+ *         description: Internal server error
  */
-router.get("/rate-limit", (_req, res) => {
-  res.json({
-    success: true,
-    rateLimit: appConfig.rateLimit,
-  });
-});
+router.get("/relayer-registry", getRelayerRegistry);
 
 /**
  * @swagger
- * /api/admin/rate-limit:
- *   put:
+ * /api/admin/relayer-registry/{relayerId}:
+ *   get:
  *     tags:
  *       - Admin
- *     summary: Update global rate-limit configuration in real-time
- *     description: >
- *       Merges the supplied fields into the active rate-limit config and
- *       persists the change to config.json so it survives a restart.
- *       All fields are optional — only the provided fields are updated.
+ *     summary: Get relayer registry entry by relayer ID
+ *     description: Retrieve KYC information for a specific relayer (Admin only)
+ *     parameters:
+ *       - in: path
+ *         name: relayerId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: The relayer ID
+ *     responses:
+ *       '200':
+ *         description: Registry entry retrieved successfully
+ *       '400':
+ *         description: Invalid relayer ID
+ *       '404':
+ *         description: Registry entry not found
+ *       '500':
+ *         description: Internal server error
+ */
+router.get("/relayer-registry/:relayerId", getRelayerRegistryById);
+
+/**
+ * @swagger
+ * /api/admin/relayer-registry:
+ *   post:
+ *     tags:
+ *       - Admin
+ *     summary: Create or update relayer registry entry
+ *     description: Create or update KYC information for a relayer (Admin only)
  *     requestBody:
  *       required: true
  *       content:
