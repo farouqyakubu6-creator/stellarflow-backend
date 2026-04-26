@@ -9,6 +9,7 @@ import { specs } from "./lib/swagger";
 import { adminMiddleware } from "./middleware/adminMiddleware";
 import { apiKeyMiddleware } from "./middleware/apiKeyMiddleware";
 import { latencyValidationMiddleware } from "./middleware/latencyGuardMiddleware";
+import { signatureVerificationMiddleware } from "./middleware/signatureVerificationMiddleware";
 import { maintenanceMiddleware } from "./middleware/maintenanceMiddleware";
 import { rateLimitMiddleware } from "./middleware/rateLimitMiddleware";
 import { tracingMiddleware, axiosTracingMiddleware } from "./middleware/tracingMiddleware";
@@ -101,6 +102,9 @@ app.get(
 app.use("/api", rateLimitMiddleware);
 app.use("/api", apiKeyMiddleware);
 app.use("/api/v1", apiKeyMiddleware);
+
+// Ed25519 signature verification for relayer payloads (Issue #225)
+app.use("/api/v1/price-updates", signatureVerificationMiddleware);
 
 // Latency validation for relayer payloads - validates timestamps to prevent stale data
 app.use("/api/v1/price-updates", latencyValidationMiddleware);
