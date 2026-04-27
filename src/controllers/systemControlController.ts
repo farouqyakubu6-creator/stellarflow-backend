@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { signatureValidationService, AdminSignature, ConsensusRequest } from "../services/signatureValidationService";
 import { Keypair } from "@stellar/stellar-sdk";
 import { TracingService } from "../services/tracingService";
+import { sendKillSwitchAlert, sendSystemFailureAlert } from "../services/notificationService";
 
 export interface HaltActionData {
   reason: string;
@@ -412,6 +413,17 @@ export class SystemControlController {
    */
   private async executeHaltAction(data: HaltActionData): Promise<string> {
     console.warn(`[SystemControl] EXECUTING SYSTEM HALT: ${data.reason}`);
+    
+    // Send kill switch alert before executing halt
+    try {
+      await sendKillSwitchAlert({
+        reason: data.reason,
+        service: "system-control",
+        correlationId: `halt_${Date.now()}`
+      });
+    } catch (notificationError) {
+      console.error("[SystemControl] Failed to send kill switch alert:", notificationError);
+    }
     
     // In a real implementation, this would:
     // 1. Stop accepting new requests
